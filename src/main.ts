@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, Platform, TFile } from "obsidian";
+import { App, Notice, Plugin, Platform, TFile, WorkspaceLeaf } from "obsidian";
 import type { SyncItSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { SyncItSettingTab } from "./settings";
@@ -6,6 +6,8 @@ import { WebDAVAdapter } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
 import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
+import { SyncProgressModal } from "./ui/SyncProgressModal";
+import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
 
 export default class SyncItPlugin extends Plugin {
 	settings: SyncItSettings = DEFAULT_SETTINGS;
@@ -14,6 +16,7 @@ export default class SyncItPlugin extends Plugin {
 	private isSyncing = false;
 	private statusBarEl: HTMLSpanElement | null = null;
 	private _updater: PluginUpdater | null = null;
+	private _sidebarView: SyncSidebarView | null = null;
 
 	async onload() {
 		console.info(`Loading SyncIt plugin`);
@@ -28,11 +31,24 @@ export default class SyncItPlugin extends Plugin {
 			this.performSync();
 		});
 
-		// Command
+		// Command: Sync
 		this.addCommand({
 			id: "syncit-sync",
 			name: "Sync vault now",
 			callback: () => this.performSync(),
+		});
+
+		// Command: Open sidebar
+		this.addCommand({
+			id: "syncit-open-sidebar",
+			name: "Open SyncIt sidebar",
+			callback: () => this.openSidebarView(),
+		});
+
+		// Register sidebar view
+		this.registerView(SYNC_SIDEBAR_VIEW_TYPE, (leaf) => {
+			this._sidebarView = new SyncSidebarView(leaf, this);
+			return this._sidebarView;
 		});
 
 		// Updater
@@ -59,6 +75,11 @@ export default class SyncItPlugin extends Plugin {
 
 		// Settings tab
 		this.addSettingTab(new SyncItSettingTab(this.app, this));
+
+		// Restore sidebar if it was open
+		this.app.workspace.onLayoutReady(() => {
+			this.restoreSidebarView();
+		});
 	}
 
 	onunload() {
@@ -87,7 +108,16 @@ export default class SyncItPlugin extends Plugin {
 
 		this.isSyncing = true;
 		this.updateStatusBar("Syncing...");
+		this._sidebarView?.setSyncing(true);
 		new Notice("SyncIt: Starting sync...");
+
+		// Create progress modal
+		const progressModal = new SyncProgressModal(this.app, 0);
+		let modalClosed = false;
+		progressModal.onCancel = () => {
+			modalClosed = true;
+		};
+		progressModal.open();
 
 		try {
 			// Initialize adapter
@@ -102,19 +132,37 @@ export default class SyncItPlugin extends Plugin {
 				baseDir: this.settings.remoteBaseDir,
 			});
 
-			// Build and execute sync plan
+			// Build sync plan
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!);
 			const plan = await builder.buildPlan();
 
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
 
 			if (totalOps === 0) {
-				new Notice("SyncIt: Already up to date");
+				progressModal.finish({
+					uploaded: 0,
+					downloaded: 0,
+					deleted: 0,
+					conflicts: 0,
+					skipped: 0,
+					errors: [],
+					message: "Already up to date",
+				});
 				this.updateStatusBar("Up to date");
+				this._sidebarView?.updateStatus("Up to date", "Just now");
 				return;
 			}
 
+			progressModal.setTotal(totalOps);
+
+			// Execute plan with progress tracking
 			const result = await builder.executePlan(plan, (current, total, operation, path) => {
+				if (!modalClosed) {
+					const opType = operation.includes("upload") ? "upload" :
+						operation.includes("download") ? "download" :
+						operation.includes("conflict") ? "conflict" : "system";
+					progressModal.addLog(opType, `${path}`, { done: true });
+				}
 				this.updateStatusBar(`${operation} ${current}/${total}`);
 			});
 
@@ -126,18 +174,35 @@ export default class SyncItPlugin extends Plugin {
 			if (result.errors.length > 0) messages.push(`${result.errors.length} errors`);
 
 			const msg = messages.join(", ") || "Nothing to sync";
+			const fullResult = {
+				...result,
+				message: msg,
+			};
+
+			if (!modalClosed) {
+				progressModal.finish(fullResult);
+			}
+
 			new Notice(`SyncIt: ${msg}`);
-			this.updateStatusBar(`Last sync: ${new Date().toLocaleTimeString()}`);
+			const timeStr = new Date().toLocaleTimeString();
+			this.updateStatusBar(`Last sync: ${timeStr}`);
+			this._sidebarView?.updateStatus("Ready", timeStr);
 
 			if (result.errors.length > 0) {
 				console.error("SyncIt errors:", result.errors);
 			}
 		} catch (error) {
 			console.error("SyncIt sync failed:", error);
-			new Notice(`SyncIt: Sync failed — ${error instanceof Error ? error.message : error}`, 10000);
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			if (!modalClosed) {
+				progressModal.addLog("error", `Sync failed: ${errorMsg}`, { error: true });
+			}
+			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");
+			this._sidebarView?.updateStatus("Sync failed");
 		} finally {
 			this.isSyncing = false;
+			this._sidebarView?.setSyncing(false);
 			if (this.adapter) {
 				await this.adapter.disconnect();
 			}
@@ -167,6 +232,35 @@ export default class SyncItPlugin extends Plugin {
 	private updateStatusBar(text: string) {
 		if (this.statusBarEl) {
 			this.statusBarEl.setText(`SyncIt: ${text}`);
+		}
+	}
+
+	async openSidebarView() {
+		const { workspace } = this.app;
+		const leaves = workspace.getLeavesOfType(SYNC_SIDEBAR_VIEW_TYPE);
+
+		if (leaves.length > 0) {
+			workspace.revealLeaf(leaves[0]);
+			return;
+		}
+
+		const leaf = workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: SYNC_SIDEBAR_VIEW_TYPE, active: true });
+			workspace.revealLeaf(leaf);
+		}
+	}
+
+	private async restoreSidebarView() {
+		const { workspace } = this.app;
+		const leaves = workspace.getLeavesOfType(SYNC_SIDEBAR_VIEW_TYPE);
+		if (leaves.length === 0) {
+			// Sidebar wasn't open previously
+			return;
+		}
+		// Reveal if it was open
+		for (const leaf of leaves) {
+			workspace.revealLeaf(leaf);
 		}
 	}
 
