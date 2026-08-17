@@ -1,33 +1,31 @@
 import { Modal, App } from "obsidian";
 import type { SyncResult, SyncPlan, FileEntity } from "../types";
 
-interface FileAction {
-	path: string;
-	type: "upload" | "download" | "skip" | "conflict" | "error";
-	subtitle: string;
-	badge: string;
-	size?: number;
-}
-
 /**
- * Redesigned sync progress modal matching the screenshot design.
- * Shows summary stat cards + per-file list with status badges.
+ * Compact sync progress modal.
+ * Shows live-updating stat cards + files appended as processed.
  */
 export class SyncProgressModal extends Modal {
 	onCancel?: () => void;
 
 	private startTime: number;
-	private plan?: SyncPlan;
 	private isDone = false;
-	private fileActions: FileAction[] = [];
+
+	// Mutable counters for live stats
+	private scanned = 0;
+	private uploaded = 0;
+	private skipped = 0;
+	private overwritten = 0;
+	private conflicts = 0;
+	private totalOps = 0;
+	private completedOps = 0;
 
 	// DOM refs
 	private syncTitleEl!: HTMLElement;
 	private subtitleEl!: HTMLElement;
-	private progressBarEl!: HTMLElement;
 	private progressFillEl!: HTMLElement;
 	private progressPercentEl!: HTMLElement;
-	private statsGridEl!: HTMLElement;
+	private statCards!: Map<string, { valueEl: HTMLElement; label: string }>;
 	private fileListEl!: HTMLElement;
 	private btnRow!: HTMLElement;
 	private cancelBtn!: HTMLElement;
@@ -37,88 +35,125 @@ export class SyncProgressModal extends Modal {
 		super(app);
 		this.startTime = Date.now();
 		this.onCancel = options?.onCancel;
+		this.statCards = new Map();
 	}
 
 	setPlan(plan: SyncPlan) {
-		this.plan = plan;
-		this.renderStatsGrid();
-		this.renderFileListPreview(plan);
+		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged;
+		this.uploaded = 0;
+		this.skipped = plan.unchanged;
+		this.overwritten = 0;
+		this.conflicts = 0;
+		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
+		this.completedOps = 0;
+		this.updateStats();
 	}
 
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("syncit-progress-modal");
-		contentEl.style.padding = "20px";
+		contentEl.style.padding = "12px";
+		contentEl.style.maxWidth = "360px";
 
-		// Title section
-		const titleSection = contentEl.createDiv("syncit-title-section");
+		// Title
+		const titleSection = contentEl.createDiv();
 		titleSection.style.textAlign = "center";
-		titleSection.style.marginBottom = "16px";
+		titleSection.style.marginBottom = "8px";
 
-		this.syncTitleEl = titleSection.createEl("h2", { text: "🔄 Syncing files" });
-		this.syncTitleEl.style.margin = "0 0 4px 0";
-		this.syncTitleEl.style.fontSize = "1.3em";
+		this.syncTitleEl = titleSection.createEl("h3", { text: "🔄 Syncing files" });
+		this.syncTitleEl.style.margin = "0 0 2px 0";
+		this.syncTitleEl.style.fontSize = "1.1em";
 
 		this.subtitleEl = titleSection.createEl("p");
 		this.subtitleEl.style.margin = "0";
 		this.subtitleEl.style.color = "var(--text-muted)";
-		this.subtitleEl.style.fontSize = "0.9em";
-		this.subtitleEl.setText("Analyzing vault...");
+		this.subtitleEl.style.fontSize = "0.8em";
+		this.subtitleEl.setText("Analyzing...");
 
 		// Progress bar
-		const progressContainer = contentEl.createDiv("syncit-progress-bar");
-		progressContainer.style.height = "8px";
+		const progressContainer = contentEl.createDiv();
+		progressContainer.style.height = "6px";
 		progressContainer.style.background = "var(--background-modifier-border)";
-		progressContainer.style.borderRadius = "4px";
-		progressContainer.style.marginBottom = "16px";
+		progressContainer.style.borderRadius = "3px";
+		progressContainer.style.marginBottom = "6px";
 		progressContainer.style.overflow = "hidden";
-		progressContainer.style.position = "relative";
 
-		this.progressFillEl = progressContainer.createDiv("syncit-progress-fill");
+		this.progressFillEl = progressContainer.createDiv();
 		this.progressFillEl.style.height = "100%";
 		this.progressFillEl.style.width = "0%";
 		this.progressFillEl.style.background = "var(--interactive-accent)";
-		this.progressFillEl.style.transition = "width 0.3s ease";
-		this.progressFillEl.style.borderRadius = "4px";
+		this.progressFillEl.style.transition = "width 0.2s ease";
+		this.progressFillEl.style.borderRadius = "3px";
 
 		this.progressPercentEl = contentEl.createEl("div");
 		this.progressPercentEl.style.textAlign = "right";
-		this.progressPercentEl.style.fontSize = "0.85em";
+		this.progressPercentEl.style.fontSize = "0.75em";
 		this.progressPercentEl.style.color = "var(--text-muted)";
-		this.progressPercentEl.style.marginBottom = "12px";
+		this.progressPercentEl.style.marginBottom = "8px";
 		this.progressPercentEl.setText("0%");
 
-		// Stats grid (2x2 or 3x2 cards)
-		this.statsGridEl = contentEl.createDiv("syncit-stats-grid");
-		this.statsGridEl.style.display = "grid";
-		this.statsGridEl.style.gridTemplateColumns = "1fr 1fr";
-		this.statsGridEl.style.gap = "8px";
-		this.statsGridEl.style.marginBottom = "16px";
+		// Stats row (horizontal, compact)
+		const statsRow = contentEl.createDiv();
+		statsRow.style.display = "flex";
+		statsRow.style.justifyContent = "space-around";
+		statsRow.style.gap = "4px";
+		statsRow.style.marginBottom = "10px";
+		statsRow.style.flexWrap = "wrap";
+
+		const statDefs = [
+			{ key: "scanned", label: "scanned", color: "var(--text-normal)" },
+			{ key: "upload", label: "upload", color: "var(--text-success)" },
+			{ key: "skip", label: "skip", color: "var(--text-muted)" },
+			{ key: "overwrite", label: "overwrite", color: "var(--text-accent)" },
+			{ key: "conflict", label: "conflict", color: "var(--text-warning)" },
+		];
+
+		for (const def of statDefs) {
+			const card = statsRow.createDiv();
+			card.style.textAlign = "center";
+			card.style.flex = "1";
+			card.style.minWidth = "50px";
+
+			const valueEl = card.createEl("div");
+			valueEl.style.fontSize = "1.1em";
+			valueEl.style.fontWeight = "700";
+			valueEl.style.color = def.color;
+			valueEl.setText("0");
+
+			const labelEl = card.createEl("div");
+			labelEl.style.fontSize = "0.65em";
+			labelEl.style.color = "var(--text-faint)";
+			labelEl.setText(def.label);
+
+			this.statCards.set(def.key, { valueEl, label: def.label });
+		}
+
+		// Files header
+		const filesHeader = contentEl.createEl("div");
+		filesHeader.style.fontSize = "0.75em";
+		filesHeader.style.color = "var(--text-faint)";
+		filesHeader.style.marginBottom = "4px";
+		filesHeader.setText("Files");
 
 		// File list
-		const listHeader = contentEl.createEl("div");
-		listHeader.style.fontSize = "0.8em";
-		listHeader.style.color = "var(--text-faint)";
-		listHeader.style.marginBottom = "8px";
-		listHeader.setText("Files");
-
-		this.fileListEl = contentEl.createDiv("syncit-file-list");
-		this.fileListEl.style.maxHeight = "300px";
+		this.fileListEl = contentEl.createDiv();
+		this.fileListEl.style.maxHeight = "200px";
 		this.fileListEl.style.overflowY = "auto";
 		this.fileListEl.style.display = "flex";
 		this.fileListEl.style.flexDirection = "column";
-		this.fileListEl.style.gap = "6px";
+		this.fileListEl.style.gap = "3px";
 
 		// Buttons
-		this.btnRow = contentEl.createDiv("syncit-btn-row");
-		this.btnRow.style.marginTop = "16px";
+		this.btnRow = contentEl.createDiv();
+		this.btnRow.style.marginTop = "10px";
 		this.btnRow.style.display = "flex";
 		this.btnRow.style.gap = "8px";
 		this.btnRow.style.justifyContent = "center";
 
 		this.cancelBtn = this.btnRow.createEl("button", { text: "Cancel", cls: "mod-warning" });
 		this.cancelBtn.style.flex = "1";
+		this.cancelBtn.style.fontSize = "0.9em";
 		this.cancelBtn.addEventListener("click", () => {
 			this.onCancel?.();
 			this.cancelBtn.setText("Cancelling...");
@@ -127,169 +162,122 @@ export class SyncProgressModal extends Modal {
 
 		this.doneBtn = this.btnRow.createEl("button", { text: "Done", cls: "mod-cta" });
 		this.doneBtn.style.flex = "1";
+		this.doneBtn.style.fontSize = "0.9em";
 		this.doneBtn.style.display = "none";
 		this.doneBtn.addEventListener("click", () => {
 			this.close();
 		});
 	}
 
-	private renderStatsGrid() {
-		if (!this.plan) return;
-
-		this.statsGridEl.empty();
-
-		const stats = [
-			{ label: "scanned", value: this.plan.uploads.length + this.plan.downloads.length + this.plan.conflicts.length + this.plan.unchanged, color: "var(--text-normal)" },
-			{ label: "upload", value: this.plan.uploads.length, color: "var(--text-success)" },
-			{ label: "skip", value: this.plan.unchanged, color: "var(--text-muted)" },
-			{ label: "overwrite", value: this.plan.downloads.length, color: "var(--text-accent)" },
-			{ label: "conflict", value: this.plan.conflicts.length, color: "var(--text-warning)" },
-		];
-
-		for (const stat of stats) {
-			const card = this.statsGridEl.createDiv("syncit-stat-card");
-			card.style.background = "var(--background-primary-alt)";
-			card.style.borderRadius = "8px";
-			card.style.padding = "10px 12px";
-			card.style.textAlign = "center";
-
-			const value = card.createEl("div");
-			value.style.fontSize = "1.4em";
-			value.style.fontWeight = "700";
-			value.style.color = stat.color;
-			value.setText(String(stat.value));
-
-			const label = card.createEl("div");
-			label.style.fontSize = "0.75em";
-			label.style.color = "var(--text-faint)";
-			label.style.marginTop = "2px";
-			label.setText(stat.label);
+	/** Update all stat cards from current counters. */
+	private updateStats() {
+		const values: Record<string, number> = {
+			scanned: this.scanned,
+			upload: this.uploaded,
+			skip: this.skipped,
+			overwrite: this.overwritten,
+			conflict: this.conflicts,
+		};
+		for (const [key, { valueEl }] of this.statCards) {
+			valueEl.setText(String(values[key] ?? 0));
 		}
 	}
 
-	private renderFileListPreview(plan: SyncPlan) {
-		this.fileListEl.empty();
+	/** Call when a file operation completes. */
+	markFileDone(path: string, operation: "upload" | "download" | "conflict" | "error", meta?: { size?: number }) {
+		this.completedOps++;
 
-		// Show all files with their planned action
-		const allFiles: Array<{ file: FileEntity; type: FileAction["type"]; subtitle: string; badge: string }> = [
-			...plan.uploads.map(f => ({ file: f, type: "upload" as const, subtitle: "Not found", badge: "Uploading" })),
-			...plan.downloads.map(f => ({ file: f, type: "download" as const, subtitle: "Server older", badge: "Overwriting" })),
-			...plan.conflicts.map(c => ({ file: c.local, type: "conflict" as const, subtitle: "Changed", badge: "Conflict" })),
-		];
+		// Update counters
+		if (operation === "upload") this.uploaded++;
+		else if (operation === "download") this.overwritten++;
+		else if (operation === "conflict") this.conflicts++;
 
-		for (const item of allFiles) {
-			this.addFileAction({
-				path: item.file.path,
-				type: item.type,
-				subtitle: item.subtitle,
-				badge: item.badge,
-				size: item.file.size,
-			});
-		}
-	}
+		this.updateStats();
+		this.updateProgress();
 
-	addFileAction(action: FileAction) {
-		this.fileActions.push(action);
+		// Subtitle
+		const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
+		this.subtitleEl.setText(`${this.completedOps} of ${this.totalOps} files · ${elapsed}s`);
 
-		const row = this.fileListEl.createDiv("syncit-file-row");
+		// Append file row
+		const row = this.fileListEl.createDiv();
 		row.style.display = "flex";
 		row.style.alignItems = "center";
-		row.style.gap = "10px";
-		row.style.padding = "8px 10px";
+		row.style.gap = "6px";
+		row.style.padding = "4px 6px";
 		row.style.background = "var(--background-primary-alt)";
-		row.style.borderRadius = "6px";
+		row.style.borderRadius = "4px";
+		row.style.fontSize = "0.85em";
 
-		// Icon
 		const icon = row.createEl("span");
-		icon.style.fontSize = "1.2em";
-		icon.style.width = "24px";
+		icon.style.width = "18px";
 		icon.style.textAlign = "center";
+		icon.style.fontSize = "0.9em";
 		const icons: Record<string, string> = {
 			upload: "📄",
 			download: "🔄",
-			skip: "✓",
 			conflict: "⚠️",
 			error: "❌",
 		};
-		icon.setText(icons[action.type] || "•");
+		icon.setText(icons[operation] || "•");
 
-		// File info
 		const info = row.createDiv();
 		info.style.flex = "1";
 		info.style.minWidth = "0";
+		info.style.overflow = "hidden";
 
-		const path = info.createEl("div");
-		path.style.fontSize = "0.9em";
-		path.style.fontWeight = "500";
-		path.style.overflow = "hidden";
-		path.style.textOverflow = "ellipsis";
-		path.style.whiteSpace = "nowrap";
-		path.setText(action.path);
+		const pathEl = info.createEl("div");
+		pathEl.style.overflow = "hidden";
+		pathEl.style.textOverflow = "ellipsis";
+		pathEl.style.whiteSpace = "nowrap";
+		pathEl.setText(path);
 
-		const meta = info.createEl("div");
-		meta.style.fontSize = "0.8em";
-		meta.style.color = "var(--text-faint)";
-		meta.style.marginTop = "2px";
+		const metaEl = info.createEl("div");
+		metaEl.style.fontSize = "0.8em";
+		metaEl.style.color = "var(--text-faint)";
 
-		const sizeText = action.size ? ` · ${formatBytes(action.size)}` : "";
-		meta.setText(`${action.subtitle}${sizeText}`);
+		const subtitles: Record<string, string> = {
+			upload: "Not found",
+			download: "Server older",
+			conflict: "Changed",
+			error: "Failed",
+		};
+		const sizeText = meta?.size ? ` · ${formatBytes(meta.size)}` : "";
+		metaEl.setText(`${subtitles[operation]}${sizeText}`);
 
-		// Status badge
 		const badge = row.createEl("span");
-		badge.style.fontSize = "0.75em";
-		badge.style.padding = "3px 8px";
-		badge.style.borderRadius = "4px";
+		badge.style.fontSize = "0.7em";
+		badge.style.padding = "2px 6px";
+		badge.style.borderRadius = "3px";
 		badge.style.fontWeight = "600";
 		badge.style.whiteSpace = "nowrap";
 
 		const badgeStyles: Record<string, { bg: string; color: string }> = {
-			"Uploading": { bg: "rgba(var(--color-green-rgb), 0.15)", color: "var(--color-green)" },
-			"Overwriting": { bg: "rgba(var(--color-blue-rgb), 0.15)", color: "var(--color-blue)" },
-			"Skipped": { bg: "rgba(var(--text-muted), 0.1)", color: "var(--text-muted)" },
-			"Conflict": { bg: "rgba(var(--color-orange-rgb), 0.15)", color: "var(--color-orange)" },
-			"Error": { bg: "rgba(var(--color-red-rgb), 0.15)", color: "var(--color-red)" },
+			upload: { bg: "rgba(var(--color-green-rgb), 0.12)", color: "var(--color-green)" },
+			download: { bg: "rgba(var(--color-blue-rgb), 0.12)", color: "var(--color-blue)" },
+			conflict: { bg: "rgba(var(--color-orange-rgb), 0.12)", color: "var(--color-orange)" },
+			error: { bg: "rgba(var(--color-red-rgb), 0.12)", color: "var(--color-red)" },
 		};
-		const style = badgeStyles[action.badge] || badgeStyles["Skipped"];
+		const style = badgeStyles[operation] || badgeStyles.error;
 		badge.style.background = style.bg;
 		badge.style.color = style.color;
-		badge.setText(action.badge);
 
-		// Scroll to bottom
+		const badgeLabels: Record<string, string> = {
+			upload: "Uploaded",
+			download: "Overwritten",
+			conflict: "Resolved",
+			error: "Error",
+		};
+		badge.setText(badgeLabels[operation] || "Done");
+
+		// Scroll to show latest
 		this.fileListEl.scrollTop = this.fileListEl.scrollHeight;
 	}
 
-	updateProgress(current: number, total: number) {
-		const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+	updateProgress() {
+		const pct = this.totalOps > 0 ? Math.round((this.completedOps / this.totalOps) * 100) : 0;
 		this.progressFillEl.style.width = `${pct}%`;
 		this.progressPercentEl.setText(`${pct}%`);
-
-		const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
-		this.subtitleEl.setText(`${current} of ${total} files · ${elapsed}s`);
-	}
-
-	markFileDone(path: string, newBadge?: string) {
-		// Find the row for this file and update its badge
-		const rows = this.fileListEl.querySelectorAll(".syncit-file-row");
-		for (const row of Array.from(rows)) {
-			const pathEl = row.querySelector("div > div:first-child");
-			if (pathEl?.textContent === path) {
-				const badge = row.querySelector("span:last-child") as HTMLElement;
-				if (badge && newBadge) {
-					badge.setText(newBadge);
-					const badgeStyles: Record<string, { bg: string; color: string }> = {
-						"Uploaded": { bg: "rgba(var(--color-green-rgb), 0.15)", color: "var(--color-green)" },
-						"Downloaded": { bg: "rgba(var(--color-blue-rgb), 0.15)", color: "var(--color-blue)" },
-						"Skipped": { bg: "rgba(var(--text-muted), 0.1)", color: "var(--text-muted)" },
-						"Conflict": { bg: "rgba(var(--color-orange-rgb), 0.15)", color: "var(--color-orange)" },
-						"Error": { bg: "rgba(var(--color-red-rgb), 0.15)", color: "var(--color-red)" },
-					};
-					const style = badgeStyles[newBadge] || badgeStyles["Skipped"];
-					badge.style.background = style.bg;
-					badge.style.color = style.color;
-				}
-				break;
-			}
-		}
 	}
 
 	finish(result: SyncResult & { message: string }) {
@@ -301,6 +289,13 @@ export class SyncProgressModal extends Modal {
 
 		this.progressFillEl.style.width = "100%";
 		this.progressPercentEl.setText("100%");
+
+		// Final stats update
+		this.uploaded = result.uploaded;
+		this.overwritten = result.downloaded;
+		this.conflicts = result.conflicts;
+		this.skipped = result.skipped;
+		this.updateStats();
 
 		// Swap buttons
 		this.cancelBtn.style.display = "none";

@@ -159,18 +159,25 @@ export default class SyncItPlugin extends Plugin {
 			}
 
 			// Execute plan with progress tracking
-			let completedOps = 0;
 			const result = await builder.executePlan(
 				plan,
 				this.settings.concurrencyLimit,
 				(current, total, operation, path) => {
 					if (!modalClosed) {
-						completedOps++;
-						progressModal.updateProgress(completedOps, totalOps);
-						const doneBadge = operation.includes("upload") ? "Uploaded" :
-							operation.includes("download") ? "Downloaded" :
-							operation.includes("conflict") ? "Resolved" : "Done";
-						progressModal.markFileDone(path, doneBadge);
+						const opType = operation.includes("upload") ? "upload" :
+							operation.includes("download") ? "download" :
+							operation.includes("conflict") ? "conflict" : "upload";
+
+						// Look up size
+						const uploadFile = plan.uploads.find(f => f.path === path);
+						const downloadFile = plan.downloads.find(f => f.path === path);
+						const conflict = plan.conflicts.find(c => c.local.path === path || c.remote.path === path);
+						let size = uploadFile?.size ?? downloadFile?.size ?? 0;
+						if (conflict) {
+							size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
+						}
+
+						progressModal.markFileDone(path, opType, { size });
 					}
 					this.updateStatusBar(`${operation} ${current}/${total}`);
 				},
