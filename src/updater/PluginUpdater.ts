@@ -34,6 +34,49 @@ export interface UpdateCheckResult {
 const GITHUB_REPO = "space-cadet/obsidian-syncit";
 const RELEASE_FILES = ["main.js", "manifest.json", "styles.css"];
 
+/** Debug logger that writes to plugin data directory */
+class DebugLogger {
+	private app: App;
+	private pluginId: string;
+	private logPath: string;
+
+	constructor(app: App, pluginId: string) {
+		this.app = app;
+		this.pluginId = pluginId;
+		this.logPath = `.obsidian/plugins/${pluginId}/debug.log`;
+	}
+
+	async log(level: string, message: string, data?: any): Promise<void> {
+		const timestamp = new Date().toISOString();
+		const entry = `[${timestamp}] [${level}] ${message}` +
+			(data ? `\n  Data: ${JSON.stringify(data, null, 2)}` : "");
+		
+		try {
+			const existing = await this.app.vault.adapter.exists(this.logPath)
+				? await this.app.vault.adapter.read(this.logPath)
+				: "";
+			// Keep last 1000 lines
+			const lines = existing.split("\n").slice(-999);
+			lines.push(entry);
+			await this.app.vault.adapter.write(this.logPath, lines.join("\n"));
+		} catch {
+			// Silently fail - debug logging should never break functionality
+		}
+	}
+
+	async info(message: string, data?: any): Promise<void> {
+		await this.log("INFO", message, data);
+	}
+
+	async error(message: string, data?: any): Promise<void> {
+		await this.log("ERROR", message, data);
+	}
+
+	async debug(message: string, data?: any): Promise<void> {
+		await this.log("DEBUG", message, data);
+	}
+}
+
 /** Simple semver comparison: returns >0 if v1 > v2, <0 if v1 < v2, 0 if equal.
  *  Non-semver tags (e.g. "latest-dev") are treated as always newer than semver versions. */
 function compareVersions(v1: string, v2: string): number {
@@ -96,10 +139,12 @@ async function downloadFile(app: App, url: string, destPath: string): Promise<vo
 export class PluginUpdater {
 	private app: App;
 	private pluginDir: string;
+	private logger: DebugLogger;
 
 	constructor(app: App, pluginId: string) {
 		this.app = app;
 		this.pluginDir = `.obsidian/plugins/${pluginId}`;
+		this.logger = new DebugLogger(app, pluginId);
 	}
 
 	private async ensureDir(dirPath: string): Promise<void> {
@@ -129,14 +174,25 @@ export class PluginUpdater {
 		currentCommitHash?: string,
 		currentBranch?: string,
 	): Promise<UpdateCheckResult> {
+		await this.logger.info("Starting update check", {
+			currentVersion,
+			includePrerelease,
+			currentCommitHash,
+			currentBranch,
+		});
+
 		try {
 			let release: ReleaseInfo;
 
 			if (includePrerelease) {
+				await this.logger.debug("Fetching releases (dev channel)");
 				const releases = (await fetchJson(
 					`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`,
 				)) as ReleaseInfo[];
+				await this.logger.debug("Got releases", { count: releases?.length });
+				
 				if (!releases || releases.length === 0) {
+					await this.logger.error("No releases found");
 					return {
 						hasUpdate: false,
 						currentVersion,
@@ -153,23 +209,29 @@ export class PluginUpdater {
 				}
 
 				release = branchRelease ?? releases.find((r) => r.tag_name === "latest-dev") ?? releases.find((r) => r.prerelease) ?? releases[0];
+				await this.logger.debug("Selected release", { tag: release.tag_name, prerelease: release.prerelease });
 			} else {
+				await this.logger.debug("Fetching latest stable release");
 				release = await fetchJson(
 					`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
 				);
+				await this.logger.debug("Got stable release", { tag: release.tag_name });
 			}
 
 			const latestVersion = release.tag_name.replace(/^v/, "");
 
+			await this.logger.debug("Fetching latest commit");
 			const latestCommit = await fetchLatestCommit(
 				includePrerelease && currentBranch ? currentBranch : "main",
 			);
+			await this.logger.debug("Got commit", { sha: latestCommit?.sha?.slice(0, 7) });
 
 			let commitMatch = false;
 			if (includePrerelease && currentCommitHash && latestCommit) {
 				const shortLocal = currentCommitHash.slice(0, 7);
 				const shortRemote = latestCommit.sha.slice(0, 7);
 				commitMatch = shortLocal === shortRemote;
+				await this.logger.info("Commit comparison", { shortLocal, shortRemote, commitMatch });
 				if (commitMatch) {
 					return {
 						hasUpdate: false,
@@ -184,6 +246,7 @@ export class PluginUpdater {
 			}
 
 			const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+			await this.logger.info("Version comparison result", { latestVersion, currentVersion, hasUpdate });
 
 			return {
 				hasUpdate,
@@ -195,6 +258,8 @@ export class PluginUpdater {
 				latestCommit,
 			};
 		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			await this.logger.error("Update check failed", { error: errorMsg, stack: error instanceof Error ? error.stack : undefined });
 			console.error("[PluginUpdater] Check failed:", error);
 			return {
 				hasUpdate: false,

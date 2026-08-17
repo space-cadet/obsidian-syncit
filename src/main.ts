@@ -375,6 +375,8 @@ export default class SyncItPlugin extends Plugin {
 			const result = await this._updater.checkForUpdate(
 				this.manifest.version,
 				this.settings.updateChannel === "dev",
+				(this.manifest as any).commitHash,  // commit hash from build
+				"main",
 			);
 
 			this.settings.lastUpdateCheck = Date.now();
@@ -382,7 +384,11 @@ export default class SyncItPlugin extends Plugin {
 
 			if (!result.hasUpdate) {
 				if (manual) {
-					new Notice("SyncIt: No updates available");
+					if (result.commitMatch) {
+						new Notice("SyncIt: Already on latest dev build");
+					} else {
+						new Notice("SyncIt: No updates available");
+					}
 				}
 				return;
 			}
@@ -405,8 +411,9 @@ export default class SyncItPlugin extends Plugin {
 			modal.open();
 		} catch (error) {
 			console.error("SyncIt update check failed:", error);
+			const msg = error instanceof Error ? error.message : String(error);
 			if (manual) {
-				new Notice("SyncIt: Update check failed");
+				new Notice(`SyncIt: Update check failed — ${msg}`, 8000);
 			}
 		}
 	}
