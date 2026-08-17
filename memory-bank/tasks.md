@@ -11,8 +11,6 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
-| T12 | **Sync Speed Optimization** | 🔄 In Progress | P0 | 2026-08-17 | T1-T3 | Critical: 4 subtasks (see T12a–T12d) |
-| T4 | Conflict Resolution with ETags | 📋 Planned | P0 | — | T1 | User's #1 priority |
 | T5 | Sync History Log | 📋 Planned | P1 | — | T1 | User's #2 priority |
 | T6 | Selective Sync | 📋 Planned | P1 | — | T1 | User's #3 priority |
 | T7 | Sync Pause and Resume | 📋 Planned | P1 | — | T1 | User's #4 priority |
@@ -28,10 +26,16 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T1 | Research & Scaffold | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | None | Plugin scaffolded, builds successfully |
 | T2 | GitHub Actions + Auto-Updater | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | T1 | CI/CD and in-plugin updater |
 | T3 | Sidebar UI & Progress Modal | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | T1 | Sidebar view, progress modal, cancel fix |
+| T4 | ETag Support (WebDAV) | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | ETag capture for conflict detection |
+| T12 | Sync Speed Optimization | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1-T3 | All 4 subtasks (a–d) complete |
+| T12a | Binary Transfer | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | ArrayBuffer + base64 encoding |
+| T12b | Streaming Uploads | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | Per-file progress tracking |
+| T12c | Directory Batching | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | MKCOL deduplication per session |
+| T12d | Local Sync Index | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T4 | Skip unchanged files via ETag index |
 
 ## Status Summary
 
-- **Active**: 9 (T12 + 8 planned)
-- **Completed**: 3
+- **Active**: 7 (T5–T11)
+- **Completed**: 8 (T1–T4, T12 + T12a–T12d)
 - **Paused**: 0
-- **Total**: 12
+- **Total**: 15
