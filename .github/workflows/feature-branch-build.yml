@@ -1,0 +1,76 @@
+name: Feature Branch Dev Build
+
+on:
+    push:
+        branches-ignore:
+            - main
+
+env:
+    PLUGIN_NAME: obsidian-syncit
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Set Up pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+
+            - name: Set Up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.22.3"
+                  cache: "pnpm"
+
+            - name: Install and Build
+              run: |
+                  pnpm install --frozen-lockfile
+                  pnpm run build
+
+            - name: Verify Build Output
+              run: |
+                  test -f main.js || (echo "Build failed: main.js not found" && exit 1)
+
+            - name: Prepare Release Assets
+              run: |
+                  mkdir -p $PLUGIN_NAME
+                  cp main.js manifest.json styles.css $PLUGIN_NAME
+                  zip -r ${PLUGIN_NAME}.zip $PLUGIN_NAME
+
+            - name: Update branch-specific dev tag
+              run: |
+                  BRANCH_TAG="latest-dev-${{ github.ref_name }}"
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git tag -f "$BRANCH_TAG"
+                  git push -f origin "$BRANCH_TAG"
+
+            - name: Create or Update Branch Pre-Release
+              uses: ncipollo/release-action@v1
+              with:
+                  tag: latest-dev-${{ github.ref_name }}
+                  name: "Dev Build (${{ github.ref_name }})"
+                  body: |
+                      Automated dev build from branch `${{ github.ref_name }}`.
+
+                      **Commit:** `${{ github.sha }}`
+                      **Built at:** ${{ github.event.head_commit.timestamp }}
+
+                      This is a development build — not for production use.
+                  prerelease: true
+                  allowUpdates: true
+                  removeArtifacts: true
+                  artifacts: |
+                      ${{ env.PLUGIN_NAME }}.zip
+                      main.js
+                      manifest.json
+                      styles.css
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,9 @@
+# Ignore patterns for SyncIt plugin
+node_modules/
+dist/
+*.log
+coverage/
+.env
+main.js
+*.map
+.DS_Store

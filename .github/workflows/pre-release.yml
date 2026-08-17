@@ -1,0 +1,69 @@
+name: Pre-Release Build (main branch)
+
+on:
+    push:
+        branches:
+            - main
+
+env:
+    PLUGIN_NAME: obsidian-syncit
+
+jobs:
+    pre-release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Set Up pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+
+            - name: Set Up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.22.3"
+                  cache: "pnpm"
+
+            - name: Install and Build
+              run: |
+                  pnpm install --frozen-lockfile
+                  pnpm run build
+
+            - name: Verify Build Output
+              run: |
+                  test -f main.js || (echo "Build failed: main.js not found" && exit 1)
+
+            - name: Prepare Release Assets
+              run: |
+                  mkdir -p $PLUGIN_NAME
+                  cp main.js manifest.json styles.css $PLUGIN_NAME
+                  zip -r ${PLUGIN_NAME}.zip $PLUGIN_NAME
+
+            - name: Update latest-dev tag to current commit
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git tag -f latest-dev
+                  git push -f origin latest-dev
+
+            - name: Create or Update Pre-Release
+              uses: ncipollo/release-action@v1
+              with:
+                  tag: latest-dev
+                  name: "Dev Build (latest main)"
+                  body: "Automated pre-release build from the latest commit on `main`. Not for production use."
+                  prerelease: true
+                  allowUpdates: true
+                  removeArtifacts: true
+                  artifacts: |
+                      ${{ env.PLUGIN_NAME }}.zip
+                      main.js
+                      manifest.json
+                      styles.css
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
