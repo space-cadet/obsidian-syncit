@@ -7,6 +7,29 @@
 
 ## 2026-08-17
 
+#### 15:50 IST - User: Modal refinements needed (5 issues)
+- Modal too big → made compact (360px max, smaller fonts)
+- Cards not compact → horizontal stat row
+- Lists all files upfront → append-only as processed
+- Cards don't update live → counters increment per file
+- Cancel button stuck → hides on finish, Done appears
+- Redesigned SyncProgressModal with live-updating stats
+
+#### 15:42 IST - CI build failed, fixed
+- Stale addLog calls in main.ts → replaced with finish()
+- titleEl conflict with Modal base class → renamed to syncTitleEl
+- Build passes cleanly
+
+#### 15:30 IST - User: Two issues reported
+- Cancel doesn't stop in-flight operations
+- Modal doesn't show whether file existed on remote
+- Redesigned modal to match screenshot: stat cards + per-file badges
+- Added AbortController to WebDAVAdapter for true cancellation
+
+#### 15:03 IST - User: Modal needs richer info
+- Requested: file sizes, unchanged count, total transferred, rate, ETA
+- Implemented in SyncProgressModal: plan summary, per-file sizes, live stats
+
 #### 14:49 IST - T12a/T12b/T12c: Sync speed optimization — 3 subtasks complete
 - **T12a**: Fixed PROPFIND `depth=1` bug — now uses `Depth: infinity` with recursive fallback
   - Files in nested directories are now discovered and synced correctly
