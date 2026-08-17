@@ -7,7 +7,6 @@ import { VaultScanner } from "./local/VaultScanner";
 import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
 import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
-import { SyncProgressModal } from "./ui/SyncProgressModal";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
 
 export default class SyncItPlugin extends Plugin {
@@ -109,6 +108,11 @@ export default class SyncItPlugin extends Plugin {
 		await this.indexManager?.clear();
 	}
 
+	/** Cancel an in-progress sync. Called from sidebar cancel button. */
+	cancelSync() {
+		this.adapter?.abort();
+	}
+
 	async performSync() {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
@@ -123,16 +127,10 @@ export default class SyncItPlugin extends Plugin {
 		this.isSyncing = true;
 		this.updateStatusBar("Syncing...");
 		this._sidebarView?.setSyncing(true);
-		new Notice("SyncIt: Starting sync...");
 
-		// Create progress modal
-		const progressModal = new SyncProgressModal(this.app);
-		let modalClosed = false;
-		progressModal.onCancel = () => {
-			modalClosed = true;
-			this.adapter?.abort();
-		};
-		progressModal.open();
+		// T3a: Open sidebar to show progress
+		this.openSidebarView();
+		new Notice("SyncIt: Sync started — see sidebar for progress", 3000);
 
 		try {
 			// Initialize adapter
@@ -160,13 +158,13 @@ export default class SyncItPlugin extends Plugin {
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
 			const plan = await builder.buildPlan();
 
-			// Pass plan to modal for pre-sync summary
-			progressModal.setPlan(plan);
+			// T3a: Send plan to sidebar
+			this._sidebarView?.setPlan(plan);
 
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
 
 			if (totalOps === 0) {
-				progressModal.finish({
+				this._sidebarView?.finish({
 					uploaded: 0,
 					downloaded: 0,
 					deleted: 0,
@@ -176,34 +174,18 @@ export default class SyncItPlugin extends Plugin {
 					message: "Already up to date",
 				});
 				this.updateStatusBar("Up to date");
-				this._sidebarView?.updateStatus("Up to date", "Just now");
 				return;
 			}
 
-			// Execute plan with progress tracking
+			// Execute plan with progress tracking (T3a: sidebar-native)
 			const result = await builder.executePlan(
 				plan,
 				this.settings.concurrencyLimit,
 				(current, total, operation, path) => {
-					if (!modalClosed) {
-						const opType = operation.includes("upload") ? "upload" :
-							operation.includes("download") ? "download" :
-							operation.includes("conflict") ? "conflict" : "upload";
-
-						// Look up size
-						const uploadFile = plan.uploads.find(f => f.path === path);
-						const downloadFile = plan.downloads.find(f => f.path === path);
-						const conflict = plan.conflicts.find(c => c.local.path === path || c.remote.path === path);
-						let size = uploadFile?.size ?? downloadFile?.size ?? 0;
-						if (conflict) {
-							size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
-						}
-
-						progressModal.markFileDone(path, opType, { size });
-					}
+					this._sidebarView?.updateProgress(current, total, operation, path);
 					this.updateStatusBar(`${operation} ${current}/${total}`);
 				},
-				() => modalClosed,
+				() => !this.isSyncing, // cancelled when isSyncing becomes false
 			);
 
 			// Report results
@@ -214,19 +196,12 @@ export default class SyncItPlugin extends Plugin {
 			if (result.errors.length > 0) messages.push(`${result.errors.length} errors`);
 
 			const msg = messages.join(", ") || "Nothing to sync";
-			const fullResult = {
-				...result,
-				message: msg,
-			};
+			const fullResult = { ...result, message: msg };
 
-			if (!modalClosed) {
-				progressModal.finish(fullResult);
-			}
-
+			this._sidebarView?.finish(fullResult);
 			new Notice(`SyncIt: ${msg}`);
 			const timeStr = new Date().toLocaleTimeString();
 			this.updateStatusBar(`Last sync: ${timeStr}`);
-			this._sidebarView?.updateStatus("Ready", timeStr);
 
 			// T12d: Update sync index after successful sync
 			if (this.indexManager && result.errors.length === 0) {
@@ -248,36 +223,14 @@ export default class SyncItPlugin extends Plugin {
 			if (error instanceof SyncCancelledError) {
 				new Notice("SyncIt: Sync cancelled");
 				this.updateStatusBar("Sync cancelled");
-				this._sidebarView?.updateStatus("Cancelled");
-				if (!modalClosed) {
-					progressModal.finish({
-						uploaded: 0,
-						downloaded: 0,
-						deleted: 0,
-						conflicts: 0,
-						skipped: 0,
-						errors: [],
-						message: "Cancelled",
-					});
-				}
+				this._sidebarView?.setCancelled();
 				return;
 			}
 			console.error("SyncIt sync failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			if (!modalClosed) {
-				progressModal.finish({
-					uploaded: 0,
-					downloaded: 0,
-					deleted: 0,
-					conflicts: 0,
-					skipped: 0,
-					errors: [errorMsg],
-					message: `Failed: ${errorMsg}`,
-				});
-			}
+			this._sidebarView?.setError(errorMsg);
 			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");
-			this._sidebarView?.updateStatus("Sync failed");
 		} finally {
 			this.isSyncing = false;
 			this._sidebarView?.setSyncing(false);
