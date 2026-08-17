@@ -105,6 +105,7 @@ export class WebDAVAdapter {
 						path,
 						mtime: item.lastModified ? new Date(item.lastModified).getTime() : 0,
 						size: item.contentLength || 0,
+						etag: item.etag,
 					});
 				}
 			}
@@ -117,7 +118,7 @@ export class WebDAVAdapter {
 	 * Convert raw PROPFIND results to FileEntity array, filtering out directories.
 	 */
 	private filterFileEntities(
-		items: Array<{ href: string; lastModified?: string; contentLength?: number }>,
+		items: Array<{ href: string; lastModified?: string; contentLength?: number; etag?: string }>,
 	): FileEntity[] {
 		const results: FileEntity[] = [];
 
@@ -137,6 +138,7 @@ export class WebDAVAdapter {
 				path,
 				mtime: item.lastModified ? new Date(item.lastModified).getTime() : 0,
 				size: item.contentLength || 0,
+				etag: item.etag,
 			});
 		}
 
@@ -301,12 +303,13 @@ export class WebDAVAdapter {
 	private async propfind(
 		path: string,
 		depth: number | "infinity",
-	): Promise<Array<{ href: string; lastModified?: string; contentLength?: number }>> {
+	): Promise<Array<{ href: string; lastModified?: string; contentLength?: number; etag?: string }>> {
 		const xml = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">
   <D:prop>
     <D:getlastmodified/>
     <D:getcontentlength/>
+    <D:getetag/>
   </D:prop>
 </D:propfind>`;
 
@@ -323,6 +326,7 @@ export class WebDAVAdapter {
 		href: string;
 		lastModified?: string;
 		contentLength?: number;
+		etag?: string;
 	}> {
 		const parser = new DOMParser();
 		const doc = parser.parseFromString(xml, "application/xml");
@@ -332,6 +336,7 @@ export class WebDAVAdapter {
 			href: string;
 			lastModified?: string;
 			contentLength?: number;
+			etag?: string;
 		}> = [];
 
 		for (const response of Array.from(responses)) {
@@ -343,9 +348,10 @@ export class WebDAVAdapter {
 
 			const lastModified = prop.getElementsByTagNameNS("DAV:", "getlastmodified")[0]?.textContent || undefined;
 			const contentLengthStr = prop.getElementsByTagNameNS("DAV:", "getcontentlength")[0]?.textContent;
+			const etag = prop.getElementsByTagNameNS("DAV:", "getetag")[0]?.textContent || undefined;
 			const contentLength = contentLengthStr ? parseInt(contentLengthStr, 10) : undefined;
 
-			results.push({ href, lastModified, contentLength });
+			results.push({ href, lastModified, contentLength, etag });
 		}
 
 		return results;

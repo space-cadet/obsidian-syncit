@@ -41,6 +41,21 @@ export interface FileEntity {
 	path: string;
 	mtime: number;
 	size: number;
+	etag?: string;
+}
+
+export interface SyncIndexEntry {
+	localMtime: number;
+	remoteMtime: number;
+	localSize: number;
+	remoteSize: number;
+	etag: string;
+}
+
+export interface SyncIndex {
+	lastSyncTime: number;
+	serverSignature: string; // hash of server config to detect changes
+	files: Record<string, SyncIndexEntry>;
 }
 
 export interface SyncPlan {

@@ -1,4 +1,5 @@
-import type { FileEntity, SyncPlan, SyncResult } from "../types";
+import type { FileEntity, SyncPlan, SyncResult, SyncIndex } from "../types";
+import type { SyncIndexManager } from "./SyncIndex";
 import { WebDAVAdapter, SyncCancelledError } from "../remote/WebDAVAdapter";
 import type { VaultScanner } from "../local/VaultScanner";
 
@@ -9,6 +10,8 @@ export class SyncPlanBuilder {
 	constructor(
 		private scanner: VaultScanner,
 		private adapter: WebDAVAdapter,
+		private indexManager?: SyncIndexManager,
+		private index?: SyncIndex | null,
 	) {}
 
 	/**
@@ -38,6 +41,9 @@ export class SyncPlanBuilder {
 			if (!remote) {
 				// File exists locally but not remotely → upload
 				plan.uploads.push(local);
+			} else if (this.indexManager?.isUnchanged(local, remote, this.index ?? null)) {
+				// T12d: Both sides match the index → skip without further comparison
+				plan.unchanged++;
 			} else if (local.mtime !== remote.mtime || local.size !== remote.size) {
 				// mtime OR size differs → file changed on one side
 				// Determine direction by comparing mtimes

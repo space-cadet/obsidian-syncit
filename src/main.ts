@@ -1,10 +1,11 @@
-import { App, Notice, Plugin, Platform, TFile, WorkspaceLeaf } from "obsidian";
+import { App, Notice, Plugin, Platform, WorkspaceLeaf } from "obsidian";
 import type { SyncItSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { SyncItSettingTab } from "./settings";
 import { WebDAVAdapter, SyncCancelledError } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
 import { SyncPlanBuilder } from "./sync/SyncPlan";
+import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
 import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncProgressModal } from "./ui/SyncProgressModal";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
@@ -13,6 +14,7 @@ export default class SyncItPlugin extends Plugin {
 	settings: SyncItSettings = DEFAULT_SETTINGS;
 	private adapter: WebDAVAdapter | null = null;
 	private scanner: VaultScanner | null = null;
+	private indexManager: SyncIndexManager | null = null;
 	private isSyncing = false;
 	private statusBarEl: HTMLSpanElement | null = null;
 	private _updater: PluginUpdater | null = null;
@@ -25,6 +27,16 @@ export default class SyncItPlugin extends Plugin {
 
 		this.adapter = new WebDAVAdapter();
 		this.scanner = new VaultScanner(this.app, this.settings);
+
+		// T12d: Set up sync index manager
+		const pluginDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+		const storage: IndexStorage = {
+			exists: (path) => this.app.vault.adapter.exists(path),
+			read: (path) => this.app.vault.adapter.read(path),
+			write: (path, data) => this.app.vault.adapter.write(path, data),
+			remove: (path) => this.app.vault.adapter.remove(path),
+		};
+		this.indexManager = new SyncIndexManager(pluginDir, storage);
 
 		// Ribbon icon
 		this.addRibbonIcon("sync", "SyncIt: Sync vault", () => {
@@ -93,6 +105,8 @@ export default class SyncItPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		// T12d: Invalidate index when settings change (server config may have changed)
+		await this.indexManager?.clear();
 	}
 
 	async performSync() {
@@ -134,8 +148,16 @@ export default class SyncItPlugin extends Plugin {
 			});
 			this.adapter.startSession();
 
+			// T12d: Load sync index
+			const serverSignature = SyncIndexManager.makeServerSignature({
+				url: this.settings.webdavUrl,
+				username: this.settings.webdavUsername,
+				baseDir: this.settings.remoteBaseDir,
+			});
+			const index = await this.indexManager?.load(serverSignature) ?? null;
+
 			// Build sync plan
-			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!);
+			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
 			const plan = await builder.buildPlan();
 
 			// Pass plan to modal for pre-sync summary
@@ -205,6 +227,19 @@ export default class SyncItPlugin extends Plugin {
 			const timeStr = new Date().toLocaleTimeString();
 			this.updateStatusBar(`Last sync: ${timeStr}`);
 			this._sidebarView?.updateStatus("Ready", timeStr);
+
+			// T12d: Update sync index after successful sync
+			if (this.indexManager && result.errors.length === 0) {
+				try {
+					const localFiles = await this.scanner!.scan();
+					const remoteFiles = await this.adapter!.listFiles();
+					const newIndex = this.indexManager.buildIndex(localFiles, remoteFiles, serverSignature);
+					await this.indexManager.save(newIndex);
+					console.info("SyncIt: Sync index updated");
+				} catch (indexErr) {
+					console.warn("SyncIt: Failed to update sync index:", indexErr);
+				}
+			}
 
 			if (result.errors.length > 0) {
 				console.error("SyncIt errors:", result.errors);
