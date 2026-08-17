@@ -26,8 +26,9 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T1 | Research & Scaffold | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | None | Plugin scaffolded, builds successfully |
 | T2 | GitHub Actions + Auto-Updater | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | T1 | CI/CD and in-plugin updater |
 | T3 | Sidebar UI & Progress Modal | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | T1 | Sidebar view, progress modal, cancel fix |
-| T4 | ETag Support (WebDAV) | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | ETag capture for conflict detection |
-| T12 | Sync Speed Optimization | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1-T3 | All 4 subtasks (a–d) complete |
+| T3a | Sidebar-Native Progress Display | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T3 | Moved progress UI from modal to sidebar |
+| T4 | ETag Support (WebDAV) | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | ETag capture + local sync index (T12d); conflict UI deferred |
+| T12 | Sync Speed Optimization | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1–T3 | All 4 subtasks (T12a–T12d) + multi-pass sync complete |
 | T12a | Binary Transfer | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | ArrayBuffer + base64 encoding |
 | T12b | Streaming Uploads | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | Per-file progress tracking |
 | T12c | Directory Batching | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | MKCOL deduplication per session |

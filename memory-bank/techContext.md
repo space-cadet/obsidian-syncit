@@ -50,13 +50,15 @@ obsidian-syncit/
 │   ├── types.ts
 │   ├── sync/
 │   │   ├── VaultSyncEngine.ts
-│   │   └── SyncPlan.ts
+│   │   ├── SyncPlan.ts
+│   │   └── SyncIndex.ts          ← T12d: local sync index
 │   ├── remote/
 │   │   └── WebDAVAdapter.ts
 │   ├── local/
 │   │   └── VaultScanner.ts
 │   └── ui/
-│       └── SyncModal.ts
+│       ├── SyncProgressModal.ts
+│       └── SyncSidebarView.ts
 ├── tests/
 │   └── (vitest tests)
 └── memory-bank/
@@ -75,12 +77,14 @@ interface SyncItSettings {
   excludePatterns: string[];
   syncOnStartup: boolean;
   confirmBeforeDelete: boolean;
+  concurrencyLimit: number;       // T12b: parallel sync limit (1–10)
 }
 
 interface FileEntity {
   path: string;
   mtime: number;
   size: number;
+  etag?: string;                  // T4: ETag from WebDAV server
 }
 
 interface SyncPlan {
@@ -88,6 +92,7 @@ interface SyncPlan {
   downloads: FileEntity[];
   deletes: FileEntity[];
   conflicts: Array<{ local: FileEntity; remote: FileEntity }>;
+  unchanged: number;              // T12d: count of skipped files
 }
 
 interface SyncResult {
@@ -95,7 +100,27 @@ interface SyncResult {
   downloaded: number;
   deleted: number;
   conflicts: number;
+  unchanged: number;              // T12d
+  skipped: number;
   errors: string[];
+  bytesUploaded: number;          // Multi-pass: byte-level progress
+  bytesDownloaded: number;
+  durationMs: number;
+}
+
+interface SyncIndexEntry {
+  path: string;
+  localMtime: number;
+  localSize: number;
+  remoteEtag: string;
+  remoteMtime: number;
+  remoteSize: number;
+}
+
+interface SyncIndex {
+  version: number;
+  serverSignature: string;        // hash of URL+username+baseDir
+  entries: SyncIndexEntry[];
 }
 ```
 

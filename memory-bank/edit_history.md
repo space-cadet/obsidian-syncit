@@ -1,11 +1,41 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-17 12:55 IST*
+*Last Updated: 2026-08-17 20:08 IST*
 
 ---
 
 ## 2026-08-17
+
+#### 19:25 IST - T4+T12d: ETag support and local sync index
+- WebDAVAdapter: capture ETags from PROPFIND `<d:getetag/>`
+- SyncIndexManager: persists sync state to `sync-index.json`
+- Unchanged files skipped on sync #2+ (no network round-trip)
+- Index invalidated when server config changes
+- Partial syncs update index incrementally via `patchIndex`
+- Commits: `92a8d51`, `c6e1297`
+
+#### 19:25 IST - T3a: Sidebar-native progress display
+- Removed blocking modal, moved all progress UI to persistent sidebar
+- Progress bar, live stat counters (scanned/upload/skip/overwrite/delete/conflict)
+- File log with icons, subtitles, size badges, colored labels
+- Completion summary with icon cards and byte totals
+- Cancel button integrated into sidebar
+- Commits: `dbd6864`, `a849a5f`
+
+#### 19:25 IST - Multi-pass sync: Scan → Compare → Transfer
+- Phase 1: Scan — lists local + remote files
+- Phase 2: Compare — builds plan with deletion detection via index
+- Phase 3: Transfer — size-based progress tracking (bytes, not file count)
+- Pre-sync summary: `12↑ 45 MB · 3↓ 12 MB · 1🗑 · 1,693⏭`
+- Duration formatting: `2m 34s` instead of `154.3s`
+- Commit: `32e1c74`
+
+#### 19:25 IST - GitHub pre-release workflow fix
+- Workflow was deleting assets before upload (HTTP 502/500)
+- Fixed by setting `removeArtifacts: false` in workflow
+- Restored `latest-dev` release with all 4 assets
+- Commit: `40b2f3e`
 
 #### 15:50 IST - User: Modal refinements needed (5 issues)
 - Modal too big → made compact (360px max, smaller fonts)

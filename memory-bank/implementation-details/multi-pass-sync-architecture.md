@@ -1,0 +1,96 @@
+# Multi-Pass Sync Architecture
+
+**Date**: 2026-08-17
+**Related Tasks**: T3a, T12 (all subtasks)
+**Status**: ✅ Implemented
+
+## Overview
+
+The sync engine was restructured from a single-pass sequential model into a **three-phase pipeline** with **size-based progress tracking**. This enables accurate progress bars, pre-sync summaries, and deletion detection.
+
+## Architecture
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Phase 1 │ ──► │  Phase 2 │ ──► │  Phase 3 │
+│   Scan   │     │ Compare  │     │ Transfer │
+└──────────┘     └──────────┘     └──────────┘
+```
+
+### Phase 1: Scan
+- List all local files via `VaultScanner`
+- List all remote files via `WebDAVAdapter` (PROPFIND with depth)
+- No decisions made — pure data collection
+
+### Phase 2: Compare
+- Build sync plan by comparing local vs remote file sets
+- Uses `SyncIndexManager` to skip unchanged files (T12d)
+- Detects deletions: files present in index but missing locally or remotely
+- Produces `SyncPlan` with counts and byte totals
+
+### Phase 3: Transfer
+- Execute uploads, downloads, and deletions
+- Size-based progress tracking (bytes transferred, not file count)
+- Parallel execution with concurrency limit (T12b)
+- Updates sync index incrementally via `patchIndex()`
+
+## Pre-Sync Summary
+
+Before starting transfer, the sidebar shows:
+
+```
+12↑ 45 MB · 3↓ 12 MB · 1🗑 · 1,693⏭
+```
+
+- `↑` = uploads (count + bytes)
+- `↓` = downloads (count + bytes)
+- `🗑` = deletions (count)
+- `⏭` = unchanged / skipped (count)
+
+## Progress Tracking
+
+Progress is measured in **bytes**, not files:
+
+```typescript
+const totalBytes = plan.bytesToUpload + plan.bytesToDownload;
+const currentBytes = uploadedBytes + downloadedBytes;
+const percent = Math.round((currentBytes / totalBytes) * 100);
+```
+
+This gives accurate ETA and progress for mixed-size file sets.
+
+## Duration Formatting
+
+Raw seconds are formatted as human-readable durations:
+
+| Input | Output |
+|-------|--------|
+| 45 | `45s` |
+| 154.3 | `2m 34s` |
+| 3600 | `1h 0m` |
+
+## Deletion Detection
+
+With a local sync index (T12d), deletion detection works as follows:
+
+1. If a file is in the index but missing locally → schedule remote delete (or vice versa)
+2. If a file is in the index but has a different remote ETag → it was modified remotely
+3. Files not in the index are treated as new
+
+## Files Modified
+
+| File | Role in Multi-Pass |
+|------|-------------------|
+| `src/sync/VaultSyncEngine.ts` | Orchestrates 3 phases |
+| `src/sync/SyncPlan.ts` | Builds plan with byte totals |
+| `src/sync/SyncIndex.ts` | Enables unchanged-file skipping |
+| `src/ui/SyncSidebarView.ts` | Displays pre-sync summary + live progress |
+| `src/main.ts` | Wires progress callbacks |
+
+## Acceptance Criteria
+
+- [x] Pre-sync summary shown before transfer begins
+- [x] Progress bar tracks bytes, not file count
+- [x] Duration formatted as `Xm Ys` instead of raw seconds
+- [x] Deletion detection works via sync index
+- [x] Cancel stops cleanly between phases
