@@ -12,6 +12,7 @@ export class WebDAVAdapter {
 	private baseUrl: string = "";
 	private baseDir: string = "";
 	private createdDirs = new Set<string>(); // T12c: track created directories per session
+	private abortController: AbortController | null = null;
 
 	async initialize(config: WebDAVConfig): Promise<void> {
 		this.config = config;
@@ -34,6 +35,23 @@ export class WebDAVAdapter {
 		this.config = null;
 		this.baseUrl = "";
 		this.createdDirs.clear(); // T12c: reset on disconnect
+		this.abortController?.abort();
+		this.abortController = null;
+	}
+
+	/** Set up a new abort controller for this sync session. */
+	startSession(): void {
+		this.abortController = new AbortController();
+	}
+
+	/** Abort any in-flight operations. */
+	abort(): void {
+		this.abortController?.abort();
+	}
+
+	/** Check if the current session has been aborted. */
+	isAborted(): boolean {
+		return this.abortController?.signal.aborted ?? false;
 	}
 
 	/**
@@ -129,6 +147,7 @@ export class WebDAVAdapter {
 	 * Read a file from the remote server.
 	 */
 	async readFile(path: string): Promise<string> {
+		if (this.isAborted()) throw new SyncCancelledError();
 		const fullPath = this.baseDir + path;
 		const res = await this.request("GET", fullPath);
 		return res.text;
@@ -140,6 +159,7 @@ export class WebDAVAdapter {
 	 * T12c: Tracks created directories to avoid redundant MKCOL calls.
 	 */
 	async writeFile(path: string, content: string): Promise<void> {
+		if (this.isAborted()) throw new SyncCancelledError();
 		const fullPath = this.baseDir + path;
 
 		// Ensure parent directories exist (batched — only create once per session)
@@ -149,6 +169,7 @@ export class WebDAVAdapter {
 			for (let i = 0; i < parts.length - 1; i++) {
 				parentPath += parts[i] + "/";
 				const fullParentPath = this.baseDir + parentPath;
+				if (this.isAborted()) throw new SyncCancelledError();
 				if (!this.createdDirs.has(fullParentPath)) {
 					await this.mkcol(fullParentPath);
 					this.createdDirs.add(fullParentPath);
@@ -156,6 +177,7 @@ export class WebDAVAdapter {
 			}
 		}
 
+		if (this.isAborted()) throw new SyncCancelledError();
 		await this.request("PUT", fullPath, {
 			body: content,
 			contentType: "text/markdown",
@@ -341,5 +363,14 @@ export class WebDAVAdapter {
 			return null;
 		}
 		return decodeURIComponent(href.slice(prefix.length));
+	}
+}
+
+
+/** Thrown when the user cancels an in-progress sync. */
+export class SyncCancelledError extends Error {
+	constructor() {
+		super("Sync cancelled by user");
+		this.name = "SyncCancelledError";
 	}
 }

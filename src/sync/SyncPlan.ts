@@ -1,5 +1,5 @@
 import type { FileEntity, SyncPlan, SyncResult } from "../types";
-import type { WebDAVAdapter } from "../remote/WebDAVAdapter";
+import { WebDAVAdapter, SyncCancelledError } from "../remote/WebDAVAdapter";
 import type { VaultScanner } from "../local/VaultScanner";
 
 /**
@@ -96,14 +96,16 @@ export class SyncPlanBuilder {
 
 		// Handle uploads in parallel
 		if (plan.uploads.length > 0) {
-			if (isCancelled?.()) throw new SyncCancelledError();
+			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
 			await runWithConcurrency(plan.uploads, concurrencyLimit, async (file) => {
+				if (this.adapter.isAborted()) throw new SyncCancelledError();
 				try {
 					const content = await this.scanner.readFile(file.path);
 					await this.adapter.writeFile(file.path, content);
 					result.uploaded++;
 					reportProgress("uploading", file.path);
 				} catch (error) {
+					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Upload failed: ${file.path} — ${error}`);
 					reportProgress("uploading (error)", file.path);
 				}
@@ -112,14 +114,16 @@ export class SyncPlanBuilder {
 
 		// Handle downloads in parallel
 		if (plan.downloads.length > 0) {
-			if (isCancelled?.()) throw new SyncCancelledError();
+			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
 			await runWithConcurrency(plan.downloads, concurrencyLimit, async (file) => {
+				if (this.adapter.isAborted()) throw new SyncCancelledError();
 				try {
 					const content = await this.adapter.readFile(file.path);
 					await this.scanner.writeFile(file.path, content);
 					result.downloaded++;
 					reportProgress("downloading", file.path);
 				} catch (error) {
+					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Download failed: ${file.path} — ${error}`);
 					reportProgress("downloading (error)", file.path);
 				}
@@ -128,8 +132,9 @@ export class SyncPlanBuilder {
 
 		// Handle conflicts in parallel
 		if (plan.conflicts.length > 0) {
-			if (isCancelled?.()) throw new SyncCancelledError();
+			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
 			await runWithConcurrency(plan.conflicts, concurrencyLimit, async ({ local, remote }) => {
+				if (this.adapter.isAborted()) throw new SyncCancelledError();
 				try {
 					if (local.mtime >= remote.mtime) {
 						const content = await this.scanner.readFile(local.path);
@@ -144,6 +149,7 @@ export class SyncPlanBuilder {
 					}
 					result.conflicts++;
 				} catch (error) {
+					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Conflict resolution failed: ${local.path} — ${error}`);
 					reportProgress("conflict (error)", local.path);
 				}
@@ -183,10 +189,4 @@ async function runWithConcurrency<T>(
 	await Promise.all(executing);
 }
 
-/** Thrown when the user cancels an in-progress sync. */
-export class SyncCancelledError extends Error {
-	constructor() {
-		super("Sync cancelled by user");
-		this.name = "SyncCancelledError";
-	}
-}
+

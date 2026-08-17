@@ -2,9 +2,9 @@ import { App, Notice, Plugin, Platform, TFile, WorkspaceLeaf } from "obsidian";
 import type { SyncItSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { SyncItSettingTab } from "./settings";
-import { WebDAVAdapter } from "./remote/WebDAVAdapter";
+import { WebDAVAdapter, SyncCancelledError } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
-import { SyncPlanBuilder, SyncCancelledError } from "./sync/SyncPlan";
+import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncProgressModal } from "./ui/SyncProgressModal";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
@@ -116,6 +116,7 @@ export default class SyncItPlugin extends Plugin {
 		let modalClosed = false;
 		progressModal.onCancel = () => {
 			modalClosed = true;
+			this.adapter?.abort();
 		};
 		progressModal.open();
 
@@ -131,6 +132,7 @@ export default class SyncItPlugin extends Plugin {
 				password: this.settings.webdavPassword,
 				baseDir: this.settings.remoteBaseDir,
 			});
+			this.adapter.startSession();
 
 			// Build sync plan
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!);
@@ -147,7 +149,7 @@ export default class SyncItPlugin extends Plugin {
 					downloaded: 0,
 					deleted: 0,
 					conflicts: 0,
-					skipped: 0,
+					skipped: plan.unchanged,
 					errors: [],
 					message: "Already up to date",
 				});
@@ -156,28 +158,19 @@ export default class SyncItPlugin extends Plugin {
 				return;
 			}
 
-			progressModal.setTotal(totalOps);
-
 			// Execute plan with progress tracking
+			let completedOps = 0;
 			const result = await builder.executePlan(
 				plan,
 				this.settings.concurrencyLimit,
 				(current, total, operation, path) => {
 					if (!modalClosed) {
-						const opType = operation.includes("upload") ? "upload" :
-							operation.includes("download") ? "download" :
-							operation.includes("conflict") ? "conflict" : "system";
-						// Look up file size from the plan
-						const uploadFile = plan.uploads.find(f => f.path === path);
-						const downloadFile = plan.downloads.find(f => f.path === path);
-						const conflict = plan.conflicts.find(c => c.local.path === path || c.remote.path === path);
-						let size = uploadFile?.size ?? downloadFile?.size ?? 0;
-						if (conflict) {
-							size = operation.includes("upload")
-								? conflict.local.size
-								: conflict.remote.size;
-						}
-						progressModal.addLog(opType, path, { done: true, size });
+						completedOps++;
+						progressModal.updateProgress(completedOps, totalOps);
+						const doneBadge = operation.includes("upload") ? "Uploaded" :
+							operation.includes("download") ? "Downloaded" :
+							operation.includes("conflict") ? "Resolved" : "Done";
+						progressModal.markFileDone(path, doneBadge);
 					}
 					this.updateStatusBar(`${operation} ${current}/${total}`);
 				},
