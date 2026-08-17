@@ -59,7 +59,10 @@ jobs:
                   body: "Automated pre-release build from the latest commit on `main`. Not for production use."
                   prerelease: true
                   allowUpdates: true
-                  removeArtifacts: true
+                  # Keep existing assets until replacement uploads succeed. This
+                  # prevents a transient GitHub 5xx from leaving the release
+                  # without main.js or the other updater assets.
+                  removeArtifacts: false
                   artifacts: |
                       ${{ env.PLUGIN_NAME }}.zip
                       main.js
