@@ -208,7 +208,6 @@ export default class SyncItPlugin extends Plugin {
 				this.updateStatusBar("Sync cancelled");
 				this._sidebarView?.updateStatus("Cancelled");
 				if (!modalClosed) {
-					progressModal.addLog("system", "Sync cancelled by user");
 					progressModal.finish({
 						uploaded: 0,
 						downloaded: 0,
@@ -224,7 +223,15 @@ export default class SyncItPlugin extends Plugin {
 			console.error("SyncIt sync failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			if (!modalClosed) {
-				progressModal.addLog("error", `Sync failed: ${errorMsg}`, { error: true });
+				progressModal.finish({
+					uploaded: 0,
+					downloaded: 0,
+					deleted: 0,
+					conflicts: 0,
+					skipped: 0,
+					errors: [errorMsg],
+					message: `Failed: ${errorMsg}`,
+				});
 			}
 			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");

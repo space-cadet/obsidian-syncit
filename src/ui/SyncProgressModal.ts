@@ -22,7 +22,7 @@ export class SyncProgressModal extends Modal {
 	private fileActions: FileAction[] = [];
 
 	// DOM refs
-	private titleEl!: HTMLElement;
+	private syncTitleEl!: HTMLElement;
 	private subtitleEl!: HTMLElement;
 	private progressBarEl!: HTMLElement;
 	private progressFillEl!: HTMLElement;
@@ -56,9 +56,9 @@ export class SyncProgressModal extends Modal {
 		titleSection.style.textAlign = "center";
 		titleSection.style.marginBottom = "16px";
 
-		this.titleEl = titleSection.createEl("h2", { text: "🔄 Syncing files" });
-		this.titleEl.style.margin = "0 0 4px 0";
-		this.titleEl.style.fontSize = "1.3em";
+		this.syncTitleEl = titleSection.createEl("h2", { text: "🔄 Syncing files" });
+		this.syncTitleEl.style.margin = "0 0 4px 0";
+		this.syncTitleEl.style.fontSize = "1.3em";
 
 		this.subtitleEl = titleSection.createEl("p");
 		this.subtitleEl.style.margin = "0";
@@ -296,7 +296,7 @@ export class SyncProgressModal extends Modal {
 		this.isDone = true;
 		const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
 
-		this.titleEl.setText("✅ Sync complete");
+		this.syncTitleEl.setText("✅ Sync complete");
 		this.subtitleEl.setText(`${result.message} · ${elapsed}s`);
 
 		this.progressFillEl.style.width = "100%";
