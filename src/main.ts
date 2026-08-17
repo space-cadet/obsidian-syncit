@@ -56,6 +56,13 @@ export default class SyncItPlugin extends Plugin {
 			callback: () => this.openSidebarView(),
 		});
 
+		// Command: Rebuild Index (no transfers — just scan and save)
+		this.addCommand({
+			id: "syncit-rebuild-index",
+			name: "Rebuild sync index",
+			callback: () => this.rebuildIndex(),
+		});
+
 		// Register sidebar view
 		this.registerView(SYNC_SIDEBAR_VIEW_TYPE, (leaf) => {
 			this._sidebarView = new SyncSidebarView(leaf, this);
@@ -206,17 +213,19 @@ export default class SyncItPlugin extends Plugin {
 			const timeStr = new Date().toLocaleTimeString();
 			this.updateStatusBar(`Last sync: ${timeStr}`);
 
-			// T12d: Update sync index after sync (even partial)
-			if (this.indexManager) {
+			// T12d: Update sync index after sync with FRESH scans (not stale Phase 1 data)
+			if (this.indexManager && this.adapter && this.scanner) {
 				try {
-					const newIndex = this.indexManager.patchIndex(
-						index,
-						localFiles,
-						remoteFiles,
+					// Fresh scan of current state on both sides
+					const { localFiles: freshLocals, remoteFiles: freshRemotes } =
+						await builder.scan();
+					const freshIndex = this.indexManager.buildIndex(
+						freshLocals,
+						freshRemotes,
 						serverSignature,
 					);
-					await this.indexManager.save(newIndex);
-					console.info("SyncIt: Sync index updated");
+					await this.indexManager.save(freshIndex);
+					console.info("SyncIt: Sync index updated with fresh ETags");
 				} catch (indexErr) {
 					console.warn("SyncIt: Failed to update sync index:", indexErr);
 				}
@@ -263,6 +272,64 @@ export default class SyncItPlugin extends Plugin {
 				success: false,
 				message: error instanceof Error ? error.message : "Connection failed",
 			};
+		}
+	}
+
+	/** Rebuild the sync index from a fresh scan — no transfers. */
+	async rebuildIndex() {
+		if (!this.settings.webdavUrl) {
+			new Notice("SyncIt: Please configure WebDAV settings first");
+			return;
+		}
+
+		new Notice("SyncIt: Rebuilding index...", 2000);
+		this.updateStatusBar("Rebuilding index...");
+
+		try {
+			if (!this.adapter || !this.scanner) {
+				this.adapter = new WebDAVAdapter();
+				this.scanner = new VaultScanner(this.app, this.settings);
+			}
+			await this.adapter.initialize({
+				url: this.settings.webdavUrl,
+				username: this.settings.webdavUsername,
+				password: this.settings.webdavPassword,
+				baseDir: this.settings.remoteBaseDir,
+			});
+
+			const serverSignature = SyncIndexManager.makeServerSignature({
+				url: this.settings.webdavUrl,
+				username: this.settings.webdavUsername,
+				baseDir: this.settings.remoteBaseDir,
+			});
+
+			const builder = new SyncPlanBuilder(
+				this.scanner,
+				this.adapter,
+				this.indexManager ?? undefined,
+				null,
+			);
+			const { localFiles, remoteFiles } = await builder.scan();
+
+			if (this.indexManager) {
+				const index = this.indexManager.buildIndex(
+					localFiles,
+					remoteFiles,
+					serverSignature,
+				);
+				await this.indexManager.save(index);
+				new Notice(`SyncIt: Index rebuilt — ${localFiles.length} local, ${remoteFiles.length} remote files`, 4000);
+				this.updateStatusBar("Index rebuilt");
+			}
+		} catch (error) {
+			console.error("SyncIt rebuild index failed:", error);
+			const msg = error instanceof Error ? error.message : String(error);
+			new Notice(`SyncIt: Index rebuild failed — ${msg}`, 6000);
+			this.updateStatusBar("Index rebuild failed");
+		} finally {
+			if (this.adapter) {
+				await this.adapter.disconnect();
+			}
 		}
 	}
 

@@ -115,6 +115,12 @@ export class SyncSidebarView extends ItemView {
 			this.app.setting.openTabById(this.plugin.manifest.id);
 		});
 
+		// Rebuild Index button
+		const rebuildBtn = actionsSection.createEl("button", { text: "Rebuild Index" });
+		rebuildBtn.style.width = "100%";
+		rebuildBtn.style.marginTop = "4px";
+		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
+
 		// Spacer
 		const spacer = container.createDiv();
 		spacer.style.flex = "1";
