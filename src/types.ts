@@ -65,6 +65,9 @@ export interface SyncPlan {
 	remoteDeletes: FileEntity[];
 	conflicts: Array<{ local: FileEntity; remote: FileEntity }>;
 	unchanged: number;
+	// Size totals for progress
+	uploadSize: number;
+	downloadSize: number;
 }
 
 export interface SyncResult {
@@ -74,6 +77,9 @@ export interface SyncResult {
 	conflicts: number;
 	skipped: number;
 	errors: string[];
+	// Size totals for progress
+	uploadedBytes: number;
+	downloadedBytes: number;
 }
 
 export interface WebDAVConfig {

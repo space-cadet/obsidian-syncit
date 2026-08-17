@@ -154,14 +154,15 @@ export default class SyncItPlugin extends Plugin {
 			});
 			const index = await this.indexManager?.load(serverSignature) ?? null;
 
-			// Build sync plan
+			// Phase 1: Scan
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
-			const plan = await builder.buildPlan();
+			const { localFiles, remoteFiles } = await builder.scan();
 
-			// T3a: Send plan to sidebar
+			// Phase 2: Build plan
+			const plan = builder.buildPlan(localFiles, remoteFiles);
 			this._sidebarView?.setPlan(plan);
 
-			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
+			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			if (totalOps === 0) {
 				this._sidebarView?.finish({
@@ -171,21 +172,23 @@ export default class SyncItPlugin extends Plugin {
 					conflicts: 0,
 					skipped: plan.unchanged,
 					errors: [],
+					uploadedBytes: 0,
+					downloadedBytes: 0,
 					message: "Already up to date",
 				});
 				this.updateStatusBar("Up to date");
 				return;
 			}
 
-			// Execute plan with progress tracking (T3a: sidebar-native)
+			// Phase 3: Transfer with size-based progress
 			const result = await builder.executePlan(
 				plan,
 				this.settings.concurrencyLimit,
-				(current, total, operation, path) => {
-					this._sidebarView?.updateProgress(current, total, operation, path);
+				(current, total, operation, path, bytesTransferred, totalBytes) => {
+					this._sidebarView?.updateProgress(current, total, operation, path, bytesTransferred, totalBytes);
 					this.updateStatusBar(`${operation} ${current}/${total}`);
 				},
-				() => !this.isSyncing, // cancelled when isSyncing becomes false
+				() => !this.isSyncing,
 			);
 
 			// Report results
@@ -203,12 +206,15 @@ export default class SyncItPlugin extends Plugin {
 			const timeStr = new Date().toLocaleTimeString();
 			this.updateStatusBar(`Last sync: ${timeStr}`);
 
-			// T12d: Update sync index after successful sync
-			if (this.indexManager && result.errors.length === 0) {
+			// T12d: Update sync index after sync (even partial)
+			if (this.indexManager) {
 				try {
-					const localFiles = await this.scanner!.scan();
-					const remoteFiles = await this.adapter!.listFiles();
-					const newIndex = this.indexManager.buildIndex(localFiles, remoteFiles, serverSignature);
+					const newIndex = this.indexManager.patchIndex(
+						index,
+						localFiles,
+						remoteFiles,
+						serverSignature,
+					);
 					await this.indexManager.save(newIndex);
 					console.info("SyncIt: Sync index updated");
 				} catch (indexErr) {

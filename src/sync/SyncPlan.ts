@@ -5,6 +5,11 @@ import type { VaultScanner } from "../local/VaultScanner";
 
 /**
  * Builds and executes sync plans by comparing local and remote file states.
+ *
+ * Architecture: Scan → Compare → Transfer (3 phases)
+ * - Phase 1: Scan local and remote file lists
+ * - Phase 2: Compare and build plan (uploads, downloads, deletions, skips)
+ * - Phase 3: Transfer with size-based progress tracking
  */
 export class SyncPlanBuilder {
 	constructor(
@@ -14,15 +19,19 @@ export class SyncPlanBuilder {
 		private index?: SyncIndex | null,
 	) {}
 
-	/**
-	 * Build a sync plan by comparing local and remote files.
-	 */
-	async buildPlan(): Promise<SyncPlan> {
+	// ─── Phase 1: Scan ───
+
+	async scan(): Promise<{ localFiles: FileEntity[]; remoteFiles: FileEntity[] }> {
 		const [localFiles, remoteFiles] = await Promise.all([
 			this.scanner.scan(),
 			this.adapter.listFiles(),
 		]);
+		return { localFiles, remoteFiles };
+	}
 
+	// ─── Phase 2: Compare & Build Plan ───
+
+	buildPlan(localFiles: FileEntity[], remoteFiles: FileEntity[]): SyncPlan {
 		const localMap = new Map(localFiles.map(f => [f.path, f]));
 		const remoteMap = new Map(remoteFiles.map(f => [f.path, f]));
 
@@ -33,24 +42,37 @@ export class SyncPlanBuilder {
 			remoteDeletes: [],
 			conflicts: [],
 			unchanged: 0,
+			uploadSize: 0,
+			downloadSize: 0,
 		};
 
 		// Check all local files
 		for (const local of localFiles) {
 			const remote = remoteMap.get(local.path);
 			if (!remote) {
-				// File exists locally but not remotely → upload
-				plan.uploads.push(local);
+				// File exists locally but not remotely
+				// Check index: was it previously synced? If yes, it was deleted remotely
+				if (this.index && this.index.files[local.path]) {
+					// Previously existed on both sides, now missing remotely
+					// → local wins: upload it (or delete from local if that's the policy)
+					plan.uploads.push(local);
+					plan.uploadSize += local.size;
+				} else {
+					// Never synced before → new file, upload
+					plan.uploads.push(local);
+					plan.uploadSize += local.size;
+				}
 			} else if (this.indexManager?.isUnchanged(local, remote, this.index ?? null)) {
-				// T12d: Both sides match the index → skip without further comparison
+				// T12d: Both sides match the index → skip
 				plan.unchanged++;
 			} else if (local.mtime !== remote.mtime || local.size !== remote.size) {
-				// mtime OR size differs → file changed on one side
-				// Determine direction by comparing mtimes
+				// File changed on one or both sides
 				if (local.mtime > remote.mtime) {
 					plan.uploads.push(local);
+					plan.uploadSize += local.size;
 				} else if (remote.mtime > local.mtime) {
 					plan.downloads.push(remote);
+					plan.downloadSize += remote.size;
 				} else {
 					// Same mtime but different size (rare) → conflict
 					plan.conflicts.push({ local, remote });
@@ -61,27 +83,32 @@ export class SyncPlanBuilder {
 			}
 		}
 
-		// Check all remote files
+		// Check remote files that don't exist locally
 		for (const remote of remoteFiles) {
 			const local = localMap.get(remote.path);
 			if (!local) {
-				// File exists remotely but not locally → download
-				plan.downloads.push(remote);
+				// File exists remotely but not locally
+				if (this.index && this.index.files[remote.path]) {
+					// Previously existed locally, now missing → deleted locally
+					// → propagate deletion to remote
+					plan.remoteDeletes.push(remote);
+				} else {
+					// Never synced before → new file on remote, download
+					plan.downloads.push(remote);
+					plan.downloadSize += remote.size;
+				}
 			}
 		}
 
 		return plan;
 	}
 
-	/**
-	 * Execute a sync plan with configurable concurrency.
-	 * @param concurrencyLimit - Max parallel operations (default: 3)
-	 * @param isCancelled - Optional function called between batches; if it returns true, sync aborts.
-	 */
+	// ─── Phase 3: Transfer ───
+
 	async executePlan(
 		plan: SyncPlan,
 		concurrencyLimit: number = 3,
-		onProgress?: (current: number, total: number, operation: string, path: string) => void,
+		onProgress?: (current: number, total: number, operation: string, path: string, bytesTransferred: number, totalBytes: number) => void,
 		isCancelled?: () => boolean,
 	): Promise<SyncResult> {
 		const result: SyncResult = {
@@ -89,15 +116,19 @@ export class SyncPlanBuilder {
 			downloaded: 0,
 			deleted: 0,
 			conflicts: 0,
-			skipped: 0,
+			skipped: plan.unchanged,
 			errors: [],
+			uploadedBytes: 0,
+			downloadedBytes: 0,
 		};
 
-		const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
+		const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 		let completedOps = 0;
+		const totalTransferBytes = plan.uploadSize + plan.downloadSize;
 
-		const reportProgress = (operation: string, path: string) => {
-			onProgress?.(++completedOps, totalOps, operation, path);
+		const reportProgress = (operation: string, path: string, bytesTransferred: number) => {
+			completedOps++;
+			onProgress?.(completedOps, totalOps, operation, path, bytesTransferred, totalTransferBytes);
 		};
 
 		// Handle uploads in parallel
@@ -109,11 +140,12 @@ export class SyncPlanBuilder {
 					const content = await this.scanner.readFile(file.path);
 					await this.adapter.writeFile(file.path, content);
 					result.uploaded++;
-					reportProgress("uploading", file.path);
+					result.uploadedBytes += file.size;
+					reportProgress("uploading", file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Upload failed: ${file.path} — ${error}`);
-					reportProgress("uploading (error)", file.path);
+					reportProgress("uploading (error)", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
 		}
@@ -127,11 +159,12 @@ export class SyncPlanBuilder {
 					const content = await this.adapter.readFile(file.path);
 					await this.scanner.writeFile(file.path, content);
 					result.downloaded++;
-					reportProgress("downloading", file.path);
+					result.downloadedBytes += file.size;
+					reportProgress("downloading", file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Download failed: ${file.path} — ${error}`);
-					reportProgress("downloading (error)", file.path);
+					reportProgress("downloading (error)", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
 		}
@@ -146,20 +179,39 @@ export class SyncPlanBuilder {
 						const content = await this.scanner.readFile(local.path);
 						await this.adapter.writeFile(local.path, content);
 						result.uploaded++;
-						reportProgress("uploading (conflict)", local.path);
+						result.uploadedBytes += local.size;
+						reportProgress("uploading (conflict)", local.path, result.uploadedBytes + result.downloadedBytes);
 					} else {
 						const content = await this.adapter.readFile(remote.path);
 						await this.scanner.writeFile(remote.path, content);
 						result.downloaded++;
-						reportProgress("downloading (conflict)", remote.path);
+						result.downloadedBytes += remote.size;
+						reportProgress("downloading (conflict)", remote.path, result.uploadedBytes + result.downloadedBytes);
 					}
 					result.conflicts++;
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Conflict resolution failed: ${local.path} — ${error}`);
-					reportProgress("conflict (error)", local.path);
+					reportProgress("conflict (error)", local.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
+		}
+
+		// Handle deletions (sequential — destructive)
+		if (plan.remoteDeletes.length > 0) {
+			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
+			for (const file of plan.remoteDeletes) {
+				if (this.adapter.isAborted()) throw new SyncCancelledError();
+				try {
+					await this.adapter.deleteFile(file.path);
+					result.deleted++;
+					reportProgress("deleting", file.path, result.uploadedBytes + result.downloadedBytes);
+				} catch (error) {
+					if (error instanceof SyncCancelledError) throw error;
+					result.errors.push(`Delete failed: ${file.path} — ${error}`);
+					reportProgress("delete (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+				}
+			}
 		}
 
 		return result;
@@ -168,10 +220,6 @@ export class SyncPlanBuilder {
 
 /**
  * Run an array of operations with a concurrency limit.
- *
- * @param items - Array of items to process
- * @param limit - Maximum number of concurrent operations
- * @param fn - Async function to run for each item
  */
 async function runWithConcurrency<T>(
 	items: T[],
@@ -194,5 +242,3 @@ async function runWithConcurrency<T>(
 
 	await Promise.all(executing);
 }
-
-

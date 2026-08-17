@@ -17,6 +17,7 @@ export class SyncSidebarView extends ItemView {
 	private progressSection: HTMLElement | null = null;
 	private progressFillEl: HTMLElement | null = null;
 	private progressPercentEl: HTMLElement | null = null;
+	private progressSizeEl: HTMLElement | null = null;
 	private statEls: Map<string, { valueEl: HTMLElement; labelEl: HTMLElement }> = new Map();
 	private fileLogEl: HTMLElement | null = null;
 	private cancelBtn: HTMLElement | null = null;
@@ -27,10 +28,13 @@ export class SyncSidebarView extends ItemView {
 	private startTime = 0;
 	private totalOps = 0;
 	private completedOps = 0;
+	private totalBytes = 0;
+	private transferredBytes = 0;
 	private scanned = 0;
 	private uploaded = 0;
 	private skipped = 0;
 	private overwritten = 0;
+	private deleted = 0;
 	private conflicts = 0;
 	private currentPlan: SyncPlan | null = null;
 
@@ -39,17 +43,9 @@ export class SyncSidebarView extends ItemView {
 		this.plugin = plugin;
 	}
 
-	getViewType(): string {
-		return SYNC_SIDEBAR_VIEW_TYPE;
-	}
-
-	getDisplayText(): string {
-		return "SyncIt";
-	}
-
-	getIcon(): string {
-		return "sync";
-	}
+	getViewType(): string { return SYNC_SIDEBAR_VIEW_TYPE; }
+	getDisplayText(): string { return "SyncIt"; }
+	getIcon(): string { return "sync"; }
 
 	async onOpen() {
 		const container = this.containerEl.children[1] as HTMLElement;
@@ -105,15 +101,11 @@ export class SyncSidebarView extends ItemView {
 		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
 
-		// Sync button
 		this.syncBtn = actionsSection.createEl("button", { text: "Sync Now" });
 		this.syncBtn.addClass("mod-cta");
 		this.syncBtn.style.width = "100%";
-		this.syncBtn.addEventListener("click", () => {
-			this.plugin.performSync();
-		});
+		this.syncBtn.addEventListener("click", () => this.plugin.performSync());
 
-		// Settings button
 		this.settingsBtn = actionsSection.createEl("button", { text: "Settings" });
 		this.settingsBtn.style.width = "100%";
 		this.settingsBtn.addEventListener("click", () => {
@@ -123,7 +115,7 @@ export class SyncSidebarView extends ItemView {
 			this.app.setting.openTabById(this.plugin.manifest.id);
 		});
 
-		// Spacer to push connection info down
+		// Spacer
 		const spacer = container.createDiv();
 		spacer.style.flex = "1";
 
@@ -140,21 +132,31 @@ export class SyncSidebarView extends ItemView {
 
 	// ─── Progress API ───
 
-	/** Called before sync starts with the plan. */
+	/** Phase 2: Show pre-sync plan summary. */
 	setPlan(plan: SyncPlan) {
 		this.isSyncing = true;
 		this.startTime = Date.now();
-		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
+		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 		this.completedOps = 0;
-		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged;
+		this.totalBytes = plan.uploadSize + plan.downloadSize;
+		this.transferredBytes = 0;
+		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged + plan.remoteDeletes.length;
 		this.uploaded = 0;
 		this.skipped = plan.unchanged;
 		this.overwritten = 0;
+		this.deleted = 0;
 		this.conflicts = 0;
 		this.currentPlan = plan;
 
 		this.statusEl.setText("Syncing...");
-		this.lastSyncEl.setText(`${this.scanned} scanned · ${this.totalOps} to sync`);
+
+		// Pre-sync summary
+		const parts: string[] = [];
+		if (plan.uploads.length > 0) parts.push(`${plan.uploads.length}↑ ${formatBytes(plan.uploadSize)}`);
+		if (plan.downloads.length > 0) parts.push(`${plan.downloads.length}↓ ${formatBytes(plan.downloadSize)}`);
+		if (plan.remoteDeletes.length > 0) parts.push(`${plan.remoteDeletes.length}🗑`);
+		if (plan.unchanged > 0) parts.push(`${plan.unchanged}⏭`);
+		this.lastSyncEl.setText(parts.join(" · ") || "Nothing to sync");
 
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "none";
@@ -163,47 +165,48 @@ export class SyncSidebarView extends ItemView {
 		this._updateStats();
 	}
 
-	/** Called for each completed operation. */
-	updateProgress(current: number, total: number, operation: string, path: string) {
+	/** Phase 3: Called during transfer with size-based progress. */
+	updateProgress(current: number, total: number, operation: string, path: string, bytesTransferred: number, totalBytes: number) {
 		this.completedOps = current;
+		this.transferredBytes = bytesTransferred;
+		this.totalBytes = totalBytes;
 		this._updateProgressBar();
 
-		const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
-		this.lastSyncEl.setText(`${current} of ${total} files · ${elapsed}s`);
+		const elapsed = Date.now() - this.startTime;
+		this.lastSyncEl.setText(`${current} of ${total} · ${formatDuration(elapsed)}`);
 
-		// Determine operation type and update counters
+		// Track counters
 		const opType = operation.includes("upload") ? "upload" :
 			operation.includes("download") ? "download" :
+			operation.includes("delete") ? "delete" :
 			operation.includes("conflict") ? "conflict" : "upload";
 
 		if (opType === "upload") this.uploaded++;
 		else if (opType === "download") this.overwritten++;
+		else if (opType === "delete") this.deleted++;
 		else if (opType === "conflict") this.conflicts++;
 
 		this._updateStats();
 
-		// Look up size from plan
+		// File log
 		let size = 0;
 		if (this.currentPlan) {
 			const uploadFile = this.currentPlan.uploads.find(f => f.path === path);
 			const downloadFile = this.currentPlan.downloads.find(f => f.path === path);
 			const conflict = this.currentPlan.conflicts.find(c => c.local.path === path || c.remote.path === path);
 			size = uploadFile?.size ?? downloadFile?.size ?? 0;
-			if (conflict) {
-				size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
-			}
+			if (conflict) size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
 		}
 
 		this._addFileLogEntry(path, opType, { size });
 	}
 
-	/** Called when sync finishes. */
 	finish(result: SyncResult & { message: string }) {
 		this.isSyncing = false;
-		const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
+		const elapsed = Date.now() - this.startTime;
 
 		this.statusEl.setText("Ready");
-		this.lastSyncEl.setText(`${result.message} · ${elapsed}s`);
+		this.lastSyncEl.setText(`${result.message} · ${formatDuration(elapsed)}`);
 
 		this._removeProgressUI();
 		this._showCompletionSummary(result, elapsed);
@@ -212,12 +215,10 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.setText("Sync Now");
 	}
 
-	/** Called when sync is cancelled. */
 	setCancelled() {
 		this.isSyncing = false;
 		this.statusEl.setText("Cancelled");
 		this.lastSyncEl.setText("Sync was cancelled");
-
 		this._removeProgressUI();
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
@@ -225,12 +226,10 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.setText("Sync Now");
 	}
 
-	/** Called when sync fails. */
 	setError(message: string) {
 		this.isSyncing = false;
 		this.statusEl.setText("Sync failed");
 		this.lastSyncEl.setText(message);
-
 		this._removeProgressUI();
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
@@ -238,14 +237,12 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.setText("Sync Now");
 	}
 
-	// ─── Idle State API ───
+	// ─── Idle State ───
 
 	updateStatus(status: string, lastSync?: string) {
 		if (!this.isSyncing) {
 			this.statusEl.setText(status);
-			if (lastSync) {
-				this.lastSyncEl.setText(`Last sync: ${lastSync}`);
-			}
+			if (lastSync) this.lastSyncEl.setText(`Last sync: ${lastSync}`);
 		}
 	}
 
@@ -256,7 +253,7 @@ export class SyncSidebarView extends ItemView {
 		}
 	}
 
-	// ─── Private UI helpers ───
+	// ─── Private UI ───
 
 	private _ensureProgressUI() {
 		if (this.progressSection) return;
@@ -265,7 +262,6 @@ export class SyncSidebarView extends ItemView {
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
 
-		// Progress section (insert before actions)
 		this.progressSection = container.createDiv("syncit-sidebar-progress-section");
 		this.progressSection.style.padding = "0 16px 12px";
 		container.insertBefore(this.progressSection, actionsSection);
@@ -275,7 +271,7 @@ export class SyncSidebarView extends ItemView {
 		progressContainer.style.height = "6px";
 		progressContainer.style.background = "var(--background-modifier-border)";
 		progressContainer.style.borderRadius = "3px";
-		progressContainer.style.marginBottom = "6px";
+		progressContainer.style.marginBottom = "4px";
 		progressContainer.style.overflow = "hidden";
 
 		this.progressFillEl = progressContainer.createDiv();
@@ -285,14 +281,23 @@ export class SyncSidebarView extends ItemView {
 		this.progressFillEl.style.transition = "width 0.2s ease";
 		this.progressFillEl.style.borderRadius = "3px";
 
-		this.progressPercentEl = this.progressSection.createEl("div");
-		this.progressPercentEl.style.textAlign = "right";
+		// Percent + size row
+		const infoRow = this.progressSection.createDiv();
+		infoRow.style.display = "flex";
+		infoRow.style.justifyContent = "space-between";
+		infoRow.style.marginBottom = "8px";
+
+		this.progressPercentEl = infoRow.createEl("span");
 		this.progressPercentEl.style.fontSize = "0.75em";
 		this.progressPercentEl.style.color = "var(--text-muted)";
-		this.progressPercentEl.style.marginBottom = "8px";
 		this.progressPercentEl.setText("0%");
 
-		// Stats row (rich stat cards like modal)
+		this.progressSizeEl = infoRow.createEl("span");
+		this.progressSizeEl.style.fontSize = "0.75em";
+		this.progressSizeEl.style.color = "var(--text-muted)";
+		this.progressSizeEl.setText("0 B / 0 B");
+
+		// Stats row
 		const statsRow = this.progressSection.createDiv();
 		statsRow.style.display = "flex";
 		statsRow.style.justifyContent = "space-around";
@@ -305,6 +310,7 @@ export class SyncSidebarView extends ItemView {
 			{ key: "upload", label: "upload", color: "var(--text-success)" },
 			{ key: "skip", label: "skip", color: "var(--text-muted)" },
 			{ key: "overwrite", label: "overwrite", color: "var(--text-accent)" },
+			{ key: "delete", label: "delete", color: "var(--text-error)" },
 			{ key: "conflict", label: "conflict", color: "var(--text-warning)" },
 		];
 
@@ -312,10 +318,10 @@ export class SyncSidebarView extends ItemView {
 			const card = statsRow.createDiv();
 			card.style.textAlign = "center";
 			card.style.flex = "1";
-			card.style.minWidth = "50px";
+			card.style.minWidth = "40px";
 
 			const valueEl = card.createEl("div");
-			valueEl.style.fontSize = "1.1em";
+			valueEl.style.fontSize = "1em";
 			valueEl.style.fontWeight = "700";
 			valueEl.style.color = def.color;
 			valueEl.setText("0");
@@ -331,9 +337,7 @@ export class SyncSidebarView extends ItemView {
 		// Cancel button
 		this.cancelBtn = this.progressSection.createEl("button", { text: "Cancel", cls: "mod-warning" });
 		this.cancelBtn.style.width = "100%";
-		this.cancelBtn.addEventListener("click", () => {
-			this.plugin.cancelSync();
-		});
+		this.cancelBtn.addEventListener("click", () => this.plugin.cancelSync());
 
 		// File log
 		const logHeader = this.progressSection.createEl("div");
@@ -358,13 +362,14 @@ export class SyncSidebarView extends ItemView {
 			this.progressSection = null;
 			this.progressFillEl = null;
 			this.progressPercentEl = null;
+			this.progressSizeEl = null;
 			this.fileLogEl = null;
 			this.cancelBtn = null;
 			this.statEls.clear();
 		}
 	}
 
-	private _showCompletionSummary(result: SyncResult & { message: string }, elapsed: string) {
+	private _showCompletionSummary(result: SyncResult & { message: string }, elapsedMs: number) {
 		const container = this.containerEl.children[1] as HTMLElement;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
@@ -373,7 +378,6 @@ export class SyncSidebarView extends ItemView {
 		this.completionSection.style.padding = "0 16px 12px";
 		container.insertBefore(this.completionSection, actionsSection);
 
-		// Title
 		const title = this.completionSection.createEl("div");
 		title.style.textAlign = "center";
 		title.style.marginBottom = "10px";
@@ -381,17 +385,16 @@ export class SyncSidebarView extends ItemView {
 		title.style.fontWeight = "600";
 		title.setText("✅ Sync complete");
 
-		// Summary cards
 		const cards: Array<{ count: number; label: string; sub: string; icon: string; color: string }> = [
-			{ count: result.uploaded, label: "uploaded", sub: "new files", icon: "📤", color: "var(--color-green)" },
+			{ count: result.uploaded, label: "uploaded", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
 			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
-			{ count: result.downloaded, label: "overwritten", sub: "server version older", icon: "🔄", color: "var(--color-blue)" },
+			{ count: result.downloaded, label: "downloaded", sub: formatBytes(result.downloadedBytes), icon: "🔄", color: "var(--color-blue)" },
+			{ count: result.deleted, label: "deleted", sub: "from remote", icon: "🗑", color: "var(--text-error)" },
 			{ count: result.conflicts, label: "conflict", sub: "needs review", icon: "⚠️", color: "var(--color-orange)" },
 		];
 
 		for (const card of cards) {
 			if (card.count === 0) continue;
-
 			const row = this.completionSection.createDiv();
 			row.style.display = "flex";
 			row.style.alignItems = "center";
@@ -419,6 +422,14 @@ export class SyncSidebarView extends ItemView {
 			labelEl.style.color = "var(--text-muted)";
 			labelEl.setText(`${card.label} · ${card.sub}`);
 		}
+
+		// Duration
+		const durationEl = this.completionSection.createEl("div");
+		durationEl.style.textAlign = "center";
+		durationEl.style.marginTop = "8px";
+		durationEl.style.fontSize = "0.8em";
+		durationEl.style.color = "var(--text-faint)";
+		durationEl.setText(`Completed in ${formatDuration(elapsedMs)}`);
 	}
 
 	private _removeCompletionUI() {
@@ -429,10 +440,11 @@ export class SyncSidebarView extends ItemView {
 	}
 
 	private _updateProgressBar() {
-		if (!this.progressFillEl || !this.progressPercentEl) return;
-		const pct = this.totalOps > 0 ? Math.round((this.completedOps / this.totalOps) * 100) : 0;
+		if (!this.progressFillEl || !this.progressPercentEl || !this.progressSizeEl) return;
+		const pct = this.totalBytes > 0 ? Math.round((this.transferredBytes / this.totalBytes) * 100) : 0;
 		this.progressFillEl.style.width = `${pct}%`;
 		this.progressPercentEl.setText(`${pct}%`);
+		this.progressSizeEl.setText(`${formatBytes(this.transferredBytes)} / ${formatBytes(this.totalBytes)}`);
 	}
 
 	private _updateStats() {
@@ -441,6 +453,7 @@ export class SyncSidebarView extends ItemView {
 			upload: this.uploaded,
 			skip: this.skipped,
 			overwrite: this.overwritten,
+			delete: this.deleted,
 			conflict: this.conflicts,
 		};
 		for (const [key, { valueEl }] of this.statEls) {
@@ -448,7 +461,7 @@ export class SyncSidebarView extends ItemView {
 		}
 	}
 
-	private _addFileLogEntry(path: string, operation: "upload" | "download" | "conflict" | "error", meta?: { size?: number }) {
+	private _addFileLogEntry(path: string, operation: "upload" | "download" | "conflict" | "error" | "delete", meta?: { size?: number }) {
 		if (!this.fileLogEl) return;
 
 		const row = this.fileLogEl.createDiv();
@@ -459,17 +472,19 @@ export class SyncSidebarView extends ItemView {
 		row.style.background = "var(--background-primary-alt)";
 		row.style.borderRadius = "4px";
 
-		const icon = row.createEl("span");
-		icon.style.width = "18px";
-		icon.style.textAlign = "center";
-		icon.style.fontSize = "0.9em";
 		const icons: Record<string, string> = {
 			upload: "📄",
 			download: "🔄",
+			delete: "🗑",
 			conflict: "⚠️",
 			error: "❌",
 		};
+
+		const icon = row.createEl("span");
 		icon.setText(icons[operation] || "•");
+		icon.style.width = "18px";
+		icon.style.textAlign = "center";
+		icon.style.fontSize = "0.9em";
 
 		const info = row.createDiv();
 		info.style.flex = "1";
@@ -487,9 +502,10 @@ export class SyncSidebarView extends ItemView {
 		metaEl.style.color = "var(--text-faint)";
 
 		const subtitles: Record<string, string> = {
-			upload: "Not found",
-			download: "Server older",
-			conflict: "Changed",
+			upload: "Uploading",
+			download: "Downloading",
+			delete: "Deleting",
+			conflict: "Conflict",
 			error: "Failed",
 		};
 		const sizeText = meta?.size ? ` · ${formatBytes(meta.size)}` : "";
@@ -505,6 +521,7 @@ export class SyncSidebarView extends ItemView {
 		const badgeStyles: Record<string, { bg: string; color: string }> = {
 			upload: { bg: "rgba(var(--color-green-rgb), 0.12)", color: "var(--color-green)" },
 			download: { bg: "rgba(var(--color-blue-rgb), 0.12)", color: "var(--color-blue)" },
+			delete: { bg: "rgba(var(--color-red-rgb), 0.12)", color: "var(--color-red)" },
 			conflict: { bg: "rgba(var(--color-orange-rgb), 0.12)", color: "var(--color-orange)" },
 			error: { bg: "rgba(var(--color-red-rgb), 0.12)", color: "var(--color-red)" },
 		};
@@ -514,23 +531,20 @@ export class SyncSidebarView extends ItemView {
 
 		const badgeLabels: Record<string, string> = {
 			upload: "Uploaded",
-			download: "Overwritten",
+			download: "Downloaded",
+			delete: "Deleted",
 			conflict: "Resolved",
 			error: "Error",
 		};
 		badge.setText(badgeLabels[operation] || "Done");
 
-		// Keep only last 20 entries
 		while (this.fileLogEl.children.length > 20) {
 			this.fileLogEl.firstChild?.remove();
 		}
-
 		this.fileLogEl.scrollTop = this.fileLogEl.scrollHeight;
 	}
 
-	async onClose() {
-		// Nothing to clean up
-	}
+	async onClose() {}
 }
 
 function formatBytes(bytes: number): string {
@@ -539,4 +553,13 @@ function formatBytes(bytes: number): string {
 	const sizes = ["B", "KB", "MB", "GB"];
 	const i = Math.floor(Math.log(bytes) / Math.log(k));
 	return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+function formatDuration(ms: number): string {
+	if (ms < 1000) return `${ms}ms`;
+	const seconds = Math.floor(ms / 1000);
+	const mins = Math.floor(seconds / 60);
+	const secs = seconds % 60;
+	if (mins === 0) return `${secs}s`;
+	return `${mins}m ${secs.toString().padStart(2, "0")}s`;
 }
