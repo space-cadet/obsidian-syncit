@@ -38,18 +38,20 @@ export class SyncPlanBuilder {
 			if (!remote) {
 				// File exists locally but not remotely → upload
 				plan.uploads.push(local);
-			} else if (local.mtime > remote.mtime && local.size !== remote.size) {
-				// Local is newer and different → upload
-				plan.uploads.push(local);
-			} else if (remote.mtime > local.mtime && local.size !== remote.size) {
-				// Remote is newer and different → download
-				plan.downloads.push(remote);
-			} else if (local.size === remote.size) {
-				// Same size, assume unchanged
-				plan.unchanged++;
+			} else if (local.mtime !== remote.mtime || local.size !== remote.size) {
+				// mtime OR size differs → file changed on one side
+				// Determine direction by comparing mtimes
+				if (local.mtime > remote.mtime) {
+					plan.uploads.push(local);
+				} else if (remote.mtime > local.mtime) {
+					plan.downloads.push(remote);
+				} else {
+					// Same mtime but different size (rare) → conflict
+					plan.conflicts.push({ local, remote });
+				}
 			} else {
-				// Same mtime but different size → conflict
-				plan.conflicts.push({ local, remote });
+				// Both mtime and size match → unchanged
+				plan.unchanged++;
 			}
 		}
 
