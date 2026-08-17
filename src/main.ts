@@ -112,7 +112,7 @@ export default class SyncItPlugin extends Plugin {
 		new Notice("SyncIt: Starting sync...");
 
 		// Create progress modal
-		const progressModal = new SyncProgressModal(this.app, 0);
+		const progressModal = new SyncProgressModal(this.app);
 		let modalClosed = false;
 		progressModal.onCancel = () => {
 			modalClosed = true;
@@ -135,6 +135,9 @@ export default class SyncItPlugin extends Plugin {
 			// Build sync plan
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!);
 			const plan = await builder.buildPlan();
+
+			// Pass plan to modal for pre-sync summary
+			progressModal.setPlan(plan);
 
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
 
@@ -164,7 +167,17 @@ export default class SyncItPlugin extends Plugin {
 						const opType = operation.includes("upload") ? "upload" :
 							operation.includes("download") ? "download" :
 							operation.includes("conflict") ? "conflict" : "system";
-						progressModal.addLog(opType, `${path}`, { done: true });
+						// Look up file size from the plan
+						const uploadFile = plan.uploads.find(f => f.path === path);
+						const downloadFile = plan.downloads.find(f => f.path === path);
+						const conflict = plan.conflicts.find(c => c.local.path === path || c.remote.path === path);
+						let size = uploadFile?.size ?? downloadFile?.size ?? 0;
+						if (conflict) {
+							size = operation.includes("upload")
+								? conflict.local.size
+								: conflict.remote.size;
+						}
+						progressModal.addLog(opType, path, { done: true, size });
 					}
 					this.updateStatusBar(`${operation} ${current}/${total}`);
 				},
