@@ -1,6 +1,8 @@
 # Obsidian SyncIt
 
-Lightweight WebDAV vault sync for Obsidian. Part of the Space Cadet plugin ecosystem.
+Lightweight WebDAV vault sync for Obsidian. Part of the [Space Cadet](https://github.com/space-cadet) plugin ecosystem.
+
+[![Build](https://github.com/space-cadet/obsidian-syncit/actions/workflows/build.yml/badge.svg)](https://github.com/space-cadet/obsidian-syncit/actions/workflows/build.yml)
 
 ## Features
 
@@ -10,6 +12,7 @@ Lightweight WebDAV vault sync for Obsidian. Part of the Space Cadet plugin ecosy
 - ⚡ **Fast** — Only syncs changed files using timestamp comparison
 - 🗑️ **Safe deletes** — Moves deleted files to trash, never permanent deletion
 - 🎯 **Focused** — WebDAV only, no bloat
+- 📦 **Auto-updater** — Built-in update checker with stable/dev channels
 
 ## Installation
 
@@ -22,7 +25,7 @@ Lightweight WebDAV vault sync for Obsidian. Part of the Space Cadet plugin ecosy
 
 ### Manual Installation
 
-1. Download the latest release from GitHub
+1. Download the latest release from [GitHub Releases](https://github.com/space-cadet/obsidian-syncit/releases)
 2. Extract to `.obsidian/plugins/obsidian-syncit/`
 3. Enable in Obsidian Settings → Community Plugins
 
@@ -33,6 +36,13 @@ Lightweight WebDAV vault sync for Obsidian. Part of the Space Cadet plugin ecosy
 3. Enter username and password
 4. Click "Test Connection"
 5. Click "Sync Now" to start
+
+### Supported WebDAV Servers
+
+- [Nextcloud](https://nextcloud.com/)
+- [ownCloud](https://owncloud.com/)
+- [Nutstore (坚果云)](https://www.jianguoyun.com/)
+- Any standard WebDAV server
 
 ## Ecosystem
 
