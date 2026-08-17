@@ -357,18 +357,32 @@ export class WebDAVAdapter {
 		return results;
 	}
 
-	private hrefToPath(href: string): string | null {
-		// Convert absolute href to relative path within baseDir
-		const prefix = "/" + this.baseDir;
-		if (!href.startsWith(prefix)) {
-			// Try without leading slash
-			const prefixNoSlash = this.baseDir;
-			if (href.startsWith(prefixNoSlash)) {
-				return decodeURIComponent(href.slice(prefixNoSlash.length));
-			}
-			return null;
+	private getFullPathPrefix(): string {
+		try {
+			const url = new URL(this.baseUrl);
+			// pathname is like /remote.php/dav/files/deepak/
+			return url.pathname + this.baseDir;
+		} catch {
+			return "/" + this.baseDir;
 		}
-		return decodeURIComponent(href.slice(prefix.length));
+	}
+
+	private hrefToPath(href: string): string | null {
+		// Nextcloud returns absolute paths like /remote.php/dav/files/user/obsidian-syncit/file.md
+		// We need to strip the full server path prefix to get the relative file path.
+		const fullPrefix = this.getFullPathPrefix();
+		if (href.startsWith(fullPrefix)) {
+			return decodeURIComponent(href.slice(fullPrefix.length));
+		}
+		// Fallback: try with just baseDir (for relative hrefs from other servers)
+		const prefix = "/" + this.baseDir;
+		if (href.startsWith(prefix)) {
+			return decodeURIComponent(href.slice(prefix.length));
+		}
+		if (href.startsWith(this.baseDir)) {
+			return decodeURIComponent(href.slice(this.baseDir.length));
+		}
+		return null;
 	}
 }
 
