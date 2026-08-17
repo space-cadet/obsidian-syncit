@@ -4,29 +4,34 @@
 *Last Updated: 2026-08-17 12:55 IST*
 
 ## Current Session
-**Started**: 2026-08-17 12:33 IST
-**Focus Task**: T1 — Research & Scaffold
+**Started**: 2026-08-17 14:34 IST
+**Focus Task**: T12 — Sync Speed Optimization
 **Session File**: None
 **Status**: 🔄 Active
 
 ## Overview
 - Active: 1 | Paused: 0 | Completed: 0
-- Last Session: -
+- Last Session: 2026-08-17 12:33 IST
 - Current Period: afternoon
 
 ## Task Registry
-- T1: Research & Scaffold (IN PROGRESS)
+- T12: Sync Speed Optimization (IN PROGRESS — 3 of 4 subtasks complete)
 
 ## Active Tasks
-- T1: Research & Scaffold — Examining existing sync plugins, scaffolding project
+- T12a: Fix PROPFIND depth ✅ COMPLETE
+- T12b: Parallel sync with concurrency limit ✅ COMPLETE
+- T12c: Batch MKCOL — eliminate redundant directory creation ✅ COMPLETE
+- T12d: Local sync index — skip unchanged files 📋 Planned (depends on T4 ETags)
 
 ## Session History (Last 5)
-- 2026-08-17 12:33 IST — Session started, user proposed vault sync plugin idea
-- 2026-08-17 12:38 IST — Discussed Remotely Save (unmaintained) vs LiveSync (CouchDB complexity)
-- 2026-08-17 12:39 IST — User revealed ecosystem vision: obsidian-ai, obsidian-git, obsidian-secrets
-- 2026-08-17 12:43 IST — Discussed integration provider API in obsidian-ai
-- 2026-08-17 12:50 IST — Decision: obsidian-syncit as standalone WebDAV vault sync plugin
+- 2026-08-17 14:34 IST — Session started, user asked to load syncit memory-bank
+- 2026-08-17 14:35 IST — User reported sync is very slow
+- 2026-08-17 14:36 IST — Diagnosed 2 bugs (PROPFIND depth=1, sequential execution) + 2 bottlenecks
+- 2026-08-17 14:39 IST — User asked to create T12 task with subtasks T12a–T12d
+- 2026-08-17 14:44 IST — User said "Proceed"; began implementing T12a, T12b, T12c
+- 2026-08-17 14:49 IST — T12a, T12b, T12c all complete; build successful
 
 ## System Status
-- **Memory Bank**: 🔄 Initialized, T1 in progress
-- **Project**: 🔄 Research phase, no code yet
+- **Memory Bank**: ✅ Updated
+- **Project**: 🔄 T12 75% complete — main.js ~52KB, build passes
+- **Next**: T12d (local sync index) or T4 (ETags) depending on user priority

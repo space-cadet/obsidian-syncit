@@ -3,8 +3,10 @@
 *Last Updated: 2026-08-17 12:55 IST*
 
 ## Current Tasks
-- T4: Conflict Resolution with ETags — User's #1 priority (PLANNED)
-- T5: Sync History Log — User's #2 priority (PLANNED)
+- T12: **Sync Speed Optimization** — 3 of 4 subtasks complete (T12a ✅, T12b ✅, T12c ✅)
+- T12d: Local sync index — skip unchanged files (📋 Planned, depends on T4 ETags)
+- T4: Conflict Resolution with ETags — User's #1 priority (📋 Planned)
+- T5: Sync History Log — User's #2 priority (📋 Planned)
 - T6: Selective Sync — User's #3 priority (PLANNED)
 - T7: Sync Pause and Resume — User's #4 priority (PLANNED)
 - T8: Dry Run Mode — User's #5 priority (PLANNED)
@@ -18,9 +20,9 @@
 - T3: Sidebar UI & Progress Modal ✅
 
 ## Next Steps
-1. T4: Implement conflict resolution with ETags (user's top priority)
-2. T5: Sync history log
-3. T6-T11: Continue down user's priority list
+1. T12d: Local sync index — skip unchanged files (depends on T4 ETags)
+2. T4: Implement conflict resolution with ETags (user's original #1 priority)
+3. T5-T11: Continue down user's priority list
 
 ## System Status
 - Repo: https://github.com/space-cadet/obsidian-syncit

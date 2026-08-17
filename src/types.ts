@@ -14,6 +14,7 @@ export interface SyncItSettings {
 	updateChannel: "stable" | "dev";
 	autoUpdate: boolean;
 	lastUpdateCheck: number;
+	concurrencyLimit: number;
 }
 
 export const DEFAULT_SETTINGS: SyncItSettings = {
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: SyncItSettings = {
 	updateChannel: "stable",
 	autoUpdate: false,
 	lastUpdateCheck: 0,
+	concurrencyLimit: 3,
 };
 
 export interface FileEntity {

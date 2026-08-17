@@ -158,6 +158,7 @@ export default class SyncItPlugin extends Plugin {
 			// Execute plan with progress tracking
 			const result = await builder.executePlan(
 				plan,
+				this.settings.concurrencyLimit,
 				(current, total, operation, path) => {
 					if (!modalClosed) {
 						const opType = operation.includes("upload") ? "upload" :

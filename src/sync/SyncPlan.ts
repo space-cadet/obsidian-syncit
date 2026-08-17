@@ -66,11 +66,13 @@ export class SyncPlanBuilder {
 	}
 
 	/**
-	 * Execute a sync plan.
-	 * @param isCancelled - Optional function called between operations; if it returns true, sync aborts.
+	 * Execute a sync plan with configurable concurrency.
+	 * @param concurrencyLimit - Max parallel operations (default: 3)
+	 * @param isCancelled - Optional function called between batches; if it returns true, sync aborts.
 	 */
 	async executePlan(
 		plan: SyncPlan,
+		concurrencyLimit: number = 3,
 		onProgress?: (current: number, total: number, operation: string, path: string) => void,
 		isCancelled?: () => boolean,
 	): Promise<SyncResult> {
@@ -84,57 +86,99 @@ export class SyncPlanBuilder {
 		};
 
 		const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
-		let currentOp = 0;
+		let completedOps = 0;
 
-		// Handle uploads
-		for (const file of plan.uploads) {
-			if (isCancelled?.()) throw new SyncCancelledError();
-			try {
-				onProgress?.(++currentOp, totalOps, "uploading", file.path);
-				const content = await this.scanner.readFile(file.path);
-				await this.adapter.writeFile(file.path, content);
-				result.uploaded++;
-			} catch (error) {
-				result.errors.push(`Upload failed: ${file.path} — ${error}`);
-			}
-		}
+		const reportProgress = (operation: string, path: string) => {
+			onProgress?.(++completedOps, totalOps, operation, path);
+		};
 
-		// Handle downloads
-		for (const file of plan.downloads) {
+		// Handle uploads in parallel
+		if (plan.uploads.length > 0) {
 			if (isCancelled?.()) throw new SyncCancelledError();
-			try {
-				onProgress?.(++currentOp, totalOps, "downloading", file.path);
-				const content = await this.adapter.readFile(file.path);
-				await this.scanner.writeFile(file.path, content);
-				result.downloaded++;
-			} catch (error) {
-				result.errors.push(`Download failed: ${file.path} — ${error}`);
-			}
-		}
-
-		// Handle conflicts (keep newer)
-		for (const { local, remote } of plan.conflicts) {
-			if (isCancelled?.()) throw new SyncCancelledError();
-			try {
-				if (local.mtime >= remote.mtime) {
-					onProgress?.(++currentOp, totalOps, "uploading (conflict)", local.path);
-					const content = await this.scanner.readFile(local.path);
-					await this.adapter.writeFile(local.path, content);
+			await runWithConcurrency(plan.uploads, concurrencyLimit, async (file) => {
+				try {
+					const content = await this.scanner.readFile(file.path);
+					await this.adapter.writeFile(file.path, content);
 					result.uploaded++;
-				} else {
-					onProgress?.(++currentOp, totalOps, "downloading (conflict)", remote.path);
-					const content = await this.adapter.readFile(remote.path);
-					await this.scanner.writeFile(remote.path, content);
-					result.downloaded++;
+					reportProgress("uploading", file.path);
+				} catch (error) {
+					result.errors.push(`Upload failed: ${file.path} — ${error}`);
+					reportProgress("uploading (error)", file.path);
 				}
-				result.conflicts++;
-			} catch (error) {
-				result.errors.push(`Conflict resolution failed: ${local.path} — ${error}`);
-			}
+			});
+		}
+
+		// Handle downloads in parallel
+		if (plan.downloads.length > 0) {
+			if (isCancelled?.()) throw new SyncCancelledError();
+			await runWithConcurrency(plan.downloads, concurrencyLimit, async (file) => {
+				try {
+					const content = await this.adapter.readFile(file.path);
+					await this.scanner.writeFile(file.path, content);
+					result.downloaded++;
+					reportProgress("downloading", file.path);
+				} catch (error) {
+					result.errors.push(`Download failed: ${file.path} — ${error}`);
+					reportProgress("downloading (error)", file.path);
+				}
+			});
+		}
+
+		// Handle conflicts in parallel
+		if (plan.conflicts.length > 0) {
+			if (isCancelled?.()) throw new SyncCancelledError();
+			await runWithConcurrency(plan.conflicts, concurrencyLimit, async ({ local, remote }) => {
+				try {
+					if (local.mtime >= remote.mtime) {
+						const content = await this.scanner.readFile(local.path);
+						await this.adapter.writeFile(local.path, content);
+						result.uploaded++;
+						reportProgress("uploading (conflict)", local.path);
+					} else {
+						const content = await this.adapter.readFile(remote.path);
+						await this.scanner.writeFile(remote.path, content);
+						result.downloaded++;
+						reportProgress("downloading (conflict)", remote.path);
+					}
+					result.conflicts++;
+				} catch (error) {
+					result.errors.push(`Conflict resolution failed: ${local.path} — ${error}`);
+					reportProgress("conflict (error)", local.path);
+				}
+			});
 		}
 
 		return result;
 	}
+}
+
+/**
+ * Run an array of operations with a concurrency limit.
+ *
+ * @param items - Array of items to process
+ * @param limit - Maximum number of concurrent operations
+ * @param fn - Async function to run for each item
+ */
+async function runWithConcurrency<T>(
+	items: T[],
+	limit: number,
+	fn: (item: T) => Promise<void>,
+): Promise<void> {
+	if (limit <= 0) limit = 1;
+	if (items.length === 0) return;
+
+	const executing = new Set<Promise<void>>();
+
+	for (const item of items) {
+		const p = fn(item).finally(() => executing.delete(p));
+		executing.add(p);
+
+		if (executing.size >= limit) {
+			await Promise.race(executing);
+		}
+	}
+
+	await Promise.all(executing);
 }
 
 /** Thrown when the user cancels an in-progress sync. */

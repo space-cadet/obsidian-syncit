@@ -11,6 +11,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
+| T12 | **Sync Speed Optimization** | 🔄 In Progress | P0 | 2026-08-17 | T1-T3 | Critical: 4 subtasks (see T12a–T12d) |
 | T4 | Conflict Resolution with ETags | 📋 Planned | P0 | — | T1 | User's #1 priority |
 | T5 | Sync History Log | 📋 Planned | P1 | — | T1 | User's #2 priority |
 | T6 | Selective Sync | 📋 Planned | P1 | — | T1 | User's #3 priority |
@@ -30,7 +31,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 ## Status Summary
 
-- **Active**: 8
+- **Active**: 9 (T12 + 8 planned)
 - **Completed**: 3
 - **Paused**: 0
-- **Total**: 11
+- **Total**: 12

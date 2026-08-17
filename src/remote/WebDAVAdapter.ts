@@ -11,6 +11,7 @@ export class WebDAVAdapter {
 	private config: WebDAVConfig | null = null;
 	private baseUrl: string = "";
 	private baseDir: string = "";
+	private createdDirs = new Set<string>(); // T12c: track created directories per session
 
 	async initialize(config: WebDAVConfig): Promise<void> {
 		this.config = config;
@@ -32,13 +33,74 @@ export class WebDAVAdapter {
 	async disconnect(): Promise<void> {
 		this.config = null;
 		this.baseUrl = "";
+		this.createdDirs.clear(); // T12c: reset on disconnect
 	}
 
 	/**
 	 * List all files in the remote vault directory recursively.
+	 *
+	 * Tries Depth: infinity first (single request, full tree). If the server
+	 * rejects it, falls back to a recursive Depth: 1 walk.
 	 */
 	async listFiles(): Promise<FileEntity[]> {
-		const items = await this.propfind(this.baseDir, 1);
+		// Try infinity depth first — most servers (Nextcloud, ownCloud, Apache) support it
+		try {
+			const items = await this.propfind(this.baseDir, "infinity");
+			return this.filterFileEntities(items);
+		} catch (err: any) {
+			// 403 Forbidden, 400 Bad Request, or 501 Not Implemented = infinity not supported
+			if (err.status === 403 || err.status === 400 || err.status === 501) {
+				console.info("SyncIt: Depth infinity not supported, falling back to recursive PROPFIND");
+				return await this.listFilesRecursive();
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Fallback recursive listing using Depth: 1 per directory.
+	 */
+	private async listFilesRecursive(): Promise<FileEntity[]> {
+		const results: FileEntity[] = [];
+		const dirsToScan = [this.baseDir];
+
+		while (dirsToScan.length > 0) {
+			const dir = dirsToScan.shift()!;
+			const items = await this.propfind(dir, 1);
+
+			for (const item of items) {
+				// Skip the directory itself
+				if (item.href.endsWith("/" + dir) || item.href === "/" + dir) {
+					continue;
+				}
+
+				const path = this.hrefToPath(item.href);
+				if (!path) continue;
+
+				// Check if it's a directory (no content length, or ends with /)
+				const isDir = path.endsWith("/") || item.contentLength === undefined;
+				if (isDir) {
+					// Queue subdirectory for scanning
+					dirsToScan.push(this.baseDir + path);
+				} else {
+					results.push({
+						path,
+						mtime: item.lastModified ? new Date(item.lastModified).getTime() : 0,
+						size: item.contentLength || 0,
+					});
+				}
+			}
+		}
+
+		return results;
+	}
+
+	/**
+	 * Convert raw PROPFIND results to FileEntity array, filtering out directories.
+	 */
+	private filterFileEntities(
+		items: Array<{ href: string; lastModified?: string; contentLength?: number }>,
+	): FileEntity[] {
 		const results: FileEntity[] = [];
 
 		for (const item of items) {
@@ -50,7 +112,7 @@ export class WebDAVAdapter {
 			const path = this.hrefToPath(item.href);
 			if (!path) continue;
 
-			// Skip directories (they end with /)
+			// Skip directories (they end with / or have no content length)
 			if (path.endsWith("/")) continue;
 
 			results.push({
@@ -74,17 +136,23 @@ export class WebDAVAdapter {
 
 	/**
 	 * Write a file to the remote server.
+	 *
+	 * T12c: Tracks created directories to avoid redundant MKCOL calls.
 	 */
 	async writeFile(path: string, content: string): Promise<void> {
 		const fullPath = this.baseDir + path;
-		
-		// Ensure parent directories exist
+
+		// Ensure parent directories exist (batched — only create once per session)
 		const parts = path.split("/");
 		if (parts.length > 1) {
 			let parentPath = "";
 			for (let i = 0; i < parts.length - 1; i++) {
 				parentPath += parts[i] + "/";
-				await this.mkcol(this.baseDir + parentPath);
+				const fullParentPath = this.baseDir + parentPath;
+				if (!this.createdDirs.has(fullParentPath)) {
+					await this.mkcol(fullParentPath);
+					this.createdDirs.add(fullParentPath);
+				}
 			}
 		}
 
@@ -210,7 +278,7 @@ export class WebDAVAdapter {
 
 	private async propfind(
 		path: string,
-		depth: number,
+		depth: number | "infinity",
 	): Promise<Array<{ href: string; lastModified?: string; contentLength?: number }>> {
 		const xml = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">

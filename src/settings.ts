@@ -126,6 +126,23 @@ export class SyncItSettingTab extends PluginSettingTab {
 					})
 			);
 
+		// Performance settings
+		containerEl.createEl("h3", { text: "Performance" });
+
+		new Setting(containerEl)
+			.setName("Concurrency limit")
+			.setDesc("Maximum number of files to sync simultaneously. Higher = faster but more server load. (Default: 3)")
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 10, 1)
+					.setValue(this.plugin.settings.concurrencyLimit)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.concurrencyLimit = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
 		// Updater settings
 		containerEl.createEl("h3", { text: "Updates" });
 
