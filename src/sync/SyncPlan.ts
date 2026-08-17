@@ -67,10 +67,12 @@ export class SyncPlanBuilder {
 
 	/**
 	 * Execute a sync plan.
+	 * @param isCancelled - Optional function called between operations; if it returns true, sync aborts.
 	 */
 	async executePlan(
 		plan: SyncPlan,
 		onProgress?: (current: number, total: number, operation: string, path: string) => void,
+		isCancelled?: () => boolean,
 	): Promise<SyncResult> {
 		const result: SyncResult = {
 			uploaded: 0,
@@ -86,6 +88,7 @@ export class SyncPlanBuilder {
 
 		// Handle uploads
 		for (const file of plan.uploads) {
+			if (isCancelled?.()) throw new SyncCancelledError();
 			try {
 				onProgress?.(++currentOp, totalOps, "uploading", file.path);
 				const content = await this.scanner.readFile(file.path);
@@ -98,6 +101,7 @@ export class SyncPlanBuilder {
 
 		// Handle downloads
 		for (const file of plan.downloads) {
+			if (isCancelled?.()) throw new SyncCancelledError();
 			try {
 				onProgress?.(++currentOp, totalOps, "downloading", file.path);
 				const content = await this.adapter.readFile(file.path);
@@ -110,6 +114,7 @@ export class SyncPlanBuilder {
 
 		// Handle conflicts (keep newer)
 		for (const { local, remote } of plan.conflicts) {
+			if (isCancelled?.()) throw new SyncCancelledError();
 			try {
 				if (local.mtime >= remote.mtime) {
 					onProgress?.(++currentOp, totalOps, "uploading (conflict)", local.path);
@@ -129,5 +134,13 @@ export class SyncPlanBuilder {
 		}
 
 		return result;
+	}
+}
+
+/** Thrown when the user cancels an in-progress sync. */
+export class SyncCancelledError extends Error {
+	constructor() {
+		super("Sync cancelled by user");
+		this.name = "SyncCancelledError";
 	}
 }

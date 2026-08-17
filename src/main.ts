@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from "./types";
 import { SyncItSettingTab } from "./settings";
 import { WebDAVAdapter } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
-import { SyncPlanBuilder } from "./sync/SyncPlan";
+import { SyncPlanBuilder, SyncCancelledError } from "./sync/SyncPlan";
 import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncProgressModal } from "./ui/SyncProgressModal";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
@@ -156,15 +156,19 @@ export default class SyncItPlugin extends Plugin {
 			progressModal.setTotal(totalOps);
 
 			// Execute plan with progress tracking
-			const result = await builder.executePlan(plan, (current, total, operation, path) => {
-				if (!modalClosed) {
-					const opType = operation.includes("upload") ? "upload" :
-						operation.includes("download") ? "download" :
-						operation.includes("conflict") ? "conflict" : "system";
-					progressModal.addLog(opType, `${path}`, { done: true });
-				}
-				this.updateStatusBar(`${operation} ${current}/${total}`);
-			});
+			const result = await builder.executePlan(
+				plan,
+				(current, total, operation, path) => {
+					if (!modalClosed) {
+						const opType = operation.includes("upload") ? "upload" :
+							operation.includes("download") ? "download" :
+							operation.includes("conflict") ? "conflict" : "system";
+						progressModal.addLog(opType, `${path}`, { done: true });
+					}
+					this.updateStatusBar(`${operation} ${current}/${total}`);
+				},
+				() => modalClosed,
+			);
 
 			// Report results
 			const messages: string[] = [];
@@ -192,6 +196,24 @@ export default class SyncItPlugin extends Plugin {
 				console.error("SyncIt errors:", result.errors);
 			}
 		} catch (error) {
+			if (error instanceof SyncCancelledError) {
+				new Notice("SyncIt: Sync cancelled");
+				this.updateStatusBar("Sync cancelled");
+				this._sidebarView?.updateStatus("Cancelled");
+				if (!modalClosed) {
+					progressModal.addLog("system", "Sync cancelled by user");
+					progressModal.finish({
+						uploaded: 0,
+						downloaded: 0,
+						deleted: 0,
+						conflicts: 0,
+						skipped: 0,
+						errors: [],
+						message: "Cancelled",
+					});
+				}
+				return;
+			}
 			console.error("SyncIt sync failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			if (!modalClosed) {
