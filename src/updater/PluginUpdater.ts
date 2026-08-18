@@ -298,7 +298,7 @@ export class PluginUpdater {
 			.map((release) => ({
 				release,
 				branch: branchFromRelease(release),
-				commitHash: release.body?.match(/Commit:\s*`([^`]+)`/)?.[1],
+				commitHash: release.body?.match(/\*\*Commit:\*\*\s*`([^`]+)`/)?.[1],
 			}));
 	}
 
