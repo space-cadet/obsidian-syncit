@@ -258,7 +258,11 @@ export class PluginUpdater {
 				}
 			}
 
-			const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+			// For dev builds, a commit mismatch means there IS an update.
+			// Version comparison is unreliable when comparing semver to dev tags.
+			const hasUpdate = includePrerelease && currentCommitHash && latestCommit
+				? !commitMatch
+				: compareVersions(latestVersion, currentVersion) > 0;
 			await this.logger.info("Version comparison result", { latestVersion, currentVersion, hasUpdate });
 
 			return {
