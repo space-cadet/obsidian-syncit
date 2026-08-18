@@ -1,4 +1,4 @@
-import { ItemView, Menu, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf } from "obsidian";
 import type SyncItPlugin from "../main";
 import type {
 	FileEntity,
@@ -123,27 +123,67 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
-		// Actions section — single-column layout so narrow sidebars never overflow.
+		// Actions section — mode selector + Sync / Dry Run buttons
 		const actionsSection = container.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
 		actionsSection.style.display = "flex";
 		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
 
-		this.syncBtn = actionsSection.createEl("button", { text: "Sync" });
-		this.syncBtn.style.width = "100%";
-		this.syncBtn.style.boxSizing = "border-box";
+		// Mode selector row
+		const modeRow = actionsSection.createDiv("syncit-mode-selector-row");
+		modeRow.style.display = "flex";
+		modeRow.style.alignItems = "center";
+		modeRow.style.gap = "8px";
+
+		const modeLabel = modeRow.createEl("span");
+		modeLabel.style.fontSize = "0.85em";
+		modeLabel.style.color = "var(--text-muted)";
+		modeLabel.setText("Mode");
+
+		const modeSelect = modeRow.createEl("select") as HTMLSelectElement;
+		modeSelect.addClass("syncit-dropdown");
+		modeSelect.style.flex = "1";
+		const modes: Array<{ value: ReconciliationMode; label: string; icon: string }> = [
+			{ value: "two-way", label: "Two-way sync", icon: "↕" },
+			{ value: "upload-only", label: "Upload only", icon: "↑" },
+			{ value: "download-only", label: "Download only", icon: "↓" },
+		];
+		for (const mode of modes) {
+			modeSelect.createEl("option", { value: mode.value, text: `${mode.icon} ${mode.label}` });
+		}
+		modeSelect.value = this.selectedMode;
+		modeSelect.addEventListener("change", () => {
+			this.selectedMode = modeSelect.value as ReconciliationMode;
+		});
+
+		// Action buttons row
+		const btnRow = actionsSection.createDiv("syncit-action-buttons");
+		btnRow.style.display = "flex";
+		btnRow.style.gap = "8px";
+
+		this.syncBtn = btnRow.createEl("button", { text: "Sync" });
+		this.syncBtn.style.flex = "1";
 		this.syncBtn.addClass("mod-cta");
-		this.syncBtn.addEventListener("click", (event) => this.openSyncMenu(event));
+		this.syncBtn.addEventListener("click", () => {
+			this.plugin.performSync(this.selectedMode);
+		});
 
-		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
-		dryRunBtn.style.width = "100%";
-		dryRunBtn.style.boxSizing = "border-box";
-		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
+		const dryRunBtn = btnRow.createEl("button", { text: "Dry Run" });
+		dryRunBtn.style.flex = "1";
+		dryRunBtn.addEventListener("click", () => {
+			this.plugin.performDryRun(this.selectedMode);
+		});
 
-		const rebuildBtn = actionsSection.createEl("button", { text: "Rebuild Index" });
-		rebuildBtn.style.width = "100%";
-		rebuildBtn.style.boxSizing = "border-box";
+		// Secondary actions
+		const secondaryRow = actionsSection.createDiv("syncit-secondary-actions");
+		secondaryRow.style.display = "flex";
+		secondaryRow.style.gap = "8px";
+		secondaryRow.style.marginTop = "4px";
+
+		const rebuildBtn = secondaryRow.createEl("button", { text: "Rebuild Index" });
+		rebuildBtn.style.flex = "1";
+		rebuildBtn.style.fontSize = "0.85em";
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		// Spacer
@@ -190,45 +230,7 @@ export class SyncSidebarView extends ItemView {
 		this.selectedMode = this.plugin.settings.syncDirection;
 	}
 
-	private openSyncMenu(event: MouseEvent) {
-		const menu = new Menu();
 
-		// Mode selection + sync actions
-		menu.addItem(item => item
-			.setTitle("↕ Two-way sync")
-			.setIcon("refresh-cw")
-			.onClick(() => this.plugin.performSync("two-way")));
-		menu.addItem(item => item
-			.setTitle("↕ Two-way dry run")
-			.setIcon("test-tube")
-			.onClick(() => this.plugin.performDryRun("two-way")));
-
-		menu.addSeparator();
-
-		menu.addItem(item => item
-			.setTitle("↑ Upload only")
-			.setIcon("upload")
-			.onClick(() => this.plugin.performSync("upload-only")));
-		menu.addItem(item => item
-			.setTitle("↑ Upload only dry run")
-			.setIcon("test-tube")
-			.onClick(() => this.plugin.performDryRun("upload-only")));
-
-		menu.addSeparator();
-
-		menu.addItem(item => item
-			.setTitle("↓ Download only")
-			.setIcon("download")
-			.onClick(() => this.plugin.performSync("download-only")));
-		menu.addItem(item => item
-			.setTitle("↓ Download only dry run")
-			.setIcon("test-tube")
-			.onClick(() => this.plugin.performDryRun("download-only")));
-
-		menu.showAtMouseEvent(event);
-	}
-
-	private openSettings() {
 		// @ts-ignore Obsidian's settings API is not exposed in the public typings.
 		this.app.setting.open();
 		// @ts-ignore

@@ -4,6 +4,8 @@
 
 ## Current Tasks
 - T14: **Sync Direction Dropdown + Policy Settings UI** - ✅ **COMPLETE** (merged to main)
+  - UI refactor: mode selector + Sync / Dry Run buttons (separation of intent and action)
+  - Replaces the 6-option dropdown with a cleaner 3-mode selector + two action buttons
 - T13: **Safe Cross-Device Reconciliation** - ✅ MERGED. Reconciliation panel code present but conditionally disabled via T14.
 - T5: **Sync History Log** - User's #2 priority (🔄 Next)
 - T6: Selective Sync - User's #3 priority (🔄)
