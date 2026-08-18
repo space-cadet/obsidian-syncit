@@ -654,7 +654,7 @@ export default class SyncItPlugin extends Plugin {
 				this.manifest.version,
 				this.settings.updateChannel === "dev",
 				(this.manifest as any).commitHash,  // commit hash from build
-				"main",
+				(this.manifest as any).buildBranch ?? "main",
 			);
 
 			this.settings.lastUpdateCheck = Date.now();

@@ -31,6 +31,12 @@ jobs:
 
             - name: Install and Build
               run: |
+                  COMMIT_HASH=$(git rev-parse HEAD)
+                  BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                  jq --arg hash "$COMMIT_HASH" --arg date "$BUILD_DATE" --arg branch "$GITHUB_REF_NAME" \
+                      '. + {commitHash: $hash, buildDate: $date, buildBranch: $branch}' \
+                      manifest.json > manifest.json.tmp
+                  mv manifest.json.tmp manifest.json
                   pnpm install --frozen-lockfile
                   pnpm run build
 

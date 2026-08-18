@@ -103,7 +103,7 @@ function compareVersions(v1: string, v2: string): number {
 async function fetchLatestCommit(branch: string = "main"): Promise<CommitInfo | null> {
 	try {
 		const data = await fetchJson(
-			`https://api.github.com/repos/${GITHUB_REPO}/commits/${branch}`,
+			`https://api.github.com/repos/${GITHUB_REPO}/commits/${encodeURIComponent(branch)}`,
 		);
 		if (!data?.sha) return null;
 		return {
