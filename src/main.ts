@@ -133,9 +133,24 @@ export default class SyncItPlugin extends Plugin {
 	}
 
 	async saveSettings() {
+		// Capture server config before save for comparison
+		const oldUrl = this.settings.webdavUrl;
+		const oldUsername = this.settings.webdavUsername;
+		const oldPassword = this.settings.webdavPassword;
+		const oldBaseDir = this.settings.remoteBaseDir;
+
 		await this.saveData(this.settings);
-		// T12d: Invalidate index when settings change (server config may have changed)
-		await this.indexManager?.clear();
+
+		// Only invalidate index if server-related settings actually changed
+		const serverConfigChanged =
+			this.settings.webdavUrl !== oldUrl ||
+			this.settings.webdavUsername !== oldUsername ||
+			this.settings.webdavPassword !== oldPassword ||
+			this.settings.remoteBaseDir !== oldBaseDir;
+
+		if (serverConfigChanged) {
+			await this.indexManager?.clear();
+		}
 	}
 
 	/** Cancel an in-progress sync. Called from sidebar cancel button. */
