@@ -14,6 +14,12 @@ export interface ReleaseInfo {
 	}>;
 }
 
+export interface AvailableBuild {
+	release: ReleaseInfo;
+	branch: string;
+	commitHash?: string;
+}
+
 export interface CommitInfo {
 	sha: string;
 	message: string;
@@ -125,6 +131,13 @@ async function fetchJson(url: string): Promise<any> {
 		headers: { "User-Agent": "obsidian-syncit-updater" },
 	});
 	return JSON.parse(response.text);
+}
+
+function branchFromRelease(release: ReleaseInfo): string {
+	const prefix = "latest-dev-";
+	return release.tag_name.startsWith(prefix)
+		? release.tag_name.slice(prefix.length)
+		: "main";
 }
 
 async function downloadFile(app: App, url: string, destPath: string): Promise<void> {
@@ -245,7 +258,11 @@ export class PluginUpdater {
 				}
 			}
 
-			const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+			// For dev builds, a commit mismatch means there IS an update.
+			// Version comparison is unreliable when comparing semver to dev tags.
+			const hasUpdate = includePrerelease && currentCommitHash && latestCommit
+				? !commitMatch
+				: compareVersions(latestVersion, currentVersion) > 0;
 			await this.logger.info("Version comparison result", { latestVersion, currentVersion, hasUpdate });
 
 			return {
@@ -269,6 +286,20 @@ export class PluginUpdater {
 				isPrerelease: false,
 			};
 		}
+	}
+
+	/** Return all currently published dev builds, one per branch/tag. */
+	async listAvailableBuilds(): Promise<AvailableBuild[]> {
+		const releases = (await fetchJson(
+			`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`,
+		)) as ReleaseInfo[];
+		return releases
+			.filter((release) => release.prerelease && release.tag_name.startsWith("latest-dev"))
+			.map((release) => ({
+				release,
+				branch: branchFromRelease(release),
+				commitHash: release.body?.match(/\*\*Commit:\*\*\s*`([^`]+)`/)?.[1],
+			}));
 	}
 
 	/** Download update files to a temp directory */
@@ -430,5 +461,61 @@ export class UpdateAvailableModal extends Modal {
 			};
 			check();
 		});
+	}
+}
+
+/** Modal for selecting a dev build from any published branch. */
+export class AvailableBuildsModal extends Modal {
+	private builds: AvailableBuild[] = [];
+
+	constructor(
+		app: App,
+		private updater: PluginUpdater,
+		private onInstall: (build: AvailableBuild) => Promise<void>,
+	) {
+		super(app);
+	}
+
+	async onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: "Available dev builds" });
+		contentEl.createEl("p", { text: "Choose a branch build to download and install." });
+		const status = contentEl.createEl("p", { text: "Loading builds…" });
+		try {
+			this.builds = await this.updater.listAvailableBuilds();
+			status.remove();
+			if (this.builds.length === 0) {
+				contentEl.createEl("p", { text: "No branch builds are currently available." });
+				return;
+			}
+			for (const build of this.builds) {
+				const setting = new Setting(contentEl)
+					.setName(build.branch)
+					.setDesc(`${build.release.name} · ${build.commitHash?.slice(0, 7) ?? "commit unavailable"} · ${new Date(build.release.published_at).toLocaleString()}`)
+					.addButton((button) => button.setButtonText("Install").onClick(async () => {
+						button.setDisabled(true);
+						button.setButtonText("Installing…");
+						try {
+							await this.onInstall(build);
+							this.close();
+							new Notice("✅ Build installed. Reloading Obsidian…");
+							// @ts-ignore
+							this.app.commands.executeCommandById("app:reload");
+						} catch (error: any) {
+							button.setDisabled(false);
+							button.setButtonText("Install");
+							new Notice(`❌ Install failed: ${error.message}`);
+						}
+					}));
+				setting.controlEl.querySelector("button")?.setAttr("aria-label", `Install ${build.branch} build`);
+			}
+		} catch (error) {
+			status.setText(`Could not load builds: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	onClose() {
+		this.contentEl.empty();
 	}
 }

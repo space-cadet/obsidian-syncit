@@ -11,7 +11,7 @@ import { WebDAVAdapter, SyncCancelledError } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
 import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
-import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
+import { AvailableBuildsModal, PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
 
 export default class SyncItPlugin extends Plugin {
@@ -175,6 +175,10 @@ export default class SyncItPlugin extends Plugin {
 		this.lastSavedServerConfig = currentConfig;
 	}
 
+	refreshSidebarMode() {
+		this._sidebarView?.updateSyncMode();
+	}
+
 	private getServerConfigSnapshot() {
 		return {
 			webdavUrl: this.settings.webdavUrl,
@@ -217,7 +221,7 @@ export default class SyncItPlugin extends Plugin {
 			.join("|");
 	}
 
-	async performSync() {
+	async performSync(mode: ReconciliationMode = this.settings.syncDirection) {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
 			return;
@@ -264,8 +268,19 @@ export default class SyncItPlugin extends Plugin {
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// Phase 2: Build plan
-			let plan = builder.buildPlan(localFiles, remoteFiles);
+			let plan = builder.buildPlan(
+				localFiles,
+				remoteFiles,
+				mode,
+				this.settings.downloadOrphanPolicy,
+				this.settings.uploadOrphanPolicy,
+			);
 
+			if (plan.requiresReconciliation) {
+				if (this.settings.reconciliationPolicy === "follow-direction") {
+					plan = builder.applyReconciliationDecisions(plan, {}, mode);
+				}
+			}
 			if (plan.requiresReconciliation) {
 				const pending = this.pendingReconciliation;
 				if (!pending || pending.key !== this.reconciliationKey(plan)) {
@@ -378,7 +393,7 @@ export default class SyncItPlugin extends Plugin {
 	}
 
 	/** Dry run: scan and build plan, but do not transfer anything. */
-	async performDryRun() {
+	async performDryRun(mode: ReconciliationMode = this.settings.syncDirection) {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
 			return;
@@ -444,24 +459,36 @@ export default class SyncItPlugin extends Plugin {
 			// DEBUG: Log scan results
 			await this._logDebug("INFO", `DryRun local=${localFiles.length} remote=${remoteFiles.length}`);
 
-			const plan = builder.buildPlan(localFiles, remoteFiles);
+			const plan = builder.buildPlan(
+				localFiles,
+				remoteFiles,
+				mode,
+				this.settings.downloadOrphanPolicy,
+				this.settings.uploadOrphanPolicy,
+			);
+
+			// Apply reconciliation decisions if policy is follow-direction
+			let resolvedPlan = plan;
+			if (plan.requiresReconciliation && this.settings.reconciliationPolicy === "follow-direction") {
+				resolvedPlan = builder.applyReconciliationDecisions(plan, {}, mode);
+			}
 
 			// DEBUG: Log plan summary
-			await this._logDebug("INFO", `DryRun plan: uploads=${plan.uploads.length} downloads=${plan.downloads.length} deletes=${plan.remoteDeletes.length} conflicts=${plan.conflicts.length} unchanged=${plan.unchanged}`);
+			await this._logDebug("INFO", `DryRun plan: uploads=${resolvedPlan.uploads.length} downloads=${resolvedPlan.downloads.length} deletes=${resolvedPlan.remoteDeletes.length} conflicts=${resolvedPlan.conflicts.length} unchanged=${resolvedPlan.unchanged}`);
 
-			this._sidebarView?.setPlan(plan);
+			this._sidebarView?.setPlan(resolvedPlan);
 
-			if (plan.requiresReconciliation) {
-				this._sidebarView?.setReconciliationRequired(plan);
+			if (resolvedPlan.requiresReconciliation) {
+				this._sidebarView?.setReconciliationRequired(resolvedPlan);
 				new Notice(
-					`SyncIt: Dry run found ${plan.reconciliation.length} file(s) needing reconciliation`,
+					`SyncIt: Dry run found ${resolvedPlan.reconciliation.length} file(s) needing reconciliation`,
 					10000,
 				);
 				this.updateStatusBar("Reconciliation required");
 				return;
 			}
 
-			const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
+			const totalOps = resolvedPlan.uploads.length + resolvedPlan.downloads.length + resolvedPlan.localDeletes.length + resolvedPlan.conflicts.length + resolvedPlan.remoteDeletes.length;
 
 			if (totalOps === 0) {
 				this._sidebarView?.finish({
@@ -484,11 +511,11 @@ export default class SyncItPlugin extends Plugin {
 			let current = 0;
 			const total = totalOps;
 			const allOps = [
-				...plan.uploads.map(f => ({ op: "uploading (dry-run)", path: f.path, size: f.size })),
-				...plan.downloads.map(f => ({ op: "downloading (dry-run)", path: f.path, size: f.size })),
-				...plan.conflicts.map(c => ({ op: "conflict (dry-run)", path: c.local.path, size: Math.max(c.local.size, c.remote.size) })),
-				...plan.localDeletes.map(f => ({ op: "deleting-local (dry-run)", path: f.path, size: 0 })),
-				...plan.remoteDeletes.map(f => ({ op: "deleting (dry-run)", path: f.path, size: 0 })),
+				...resolvedPlan.uploads.map(f => ({ op: "uploading (dry-run)", path: f.path, size: f.size })),
+				...resolvedPlan.downloads.map(f => ({ op: "downloading (dry-run)", path: f.path, size: f.size })),
+				...resolvedPlan.conflicts.map(c => ({ op: "conflict (dry-run)", path: c.local.path, size: Math.max(c.local.size, c.remote.size) })),
+				...resolvedPlan.localDeletes.map(f => ({ op: "deleting-local (dry-run)", path: f.path, size: 0 })),
+				...resolvedPlan.remoteDeletes.map(f => ({ op: "deleting (dry-run)", path: f.path, size: 0 })),
 			];
 
 			for (const op of allOps) {
@@ -497,9 +524,9 @@ export default class SyncItPlugin extends Plugin {
 			}
 
 			const result = {
-				uploaded: plan.uploads.length,
-				downloaded: plan.downloads.length,
-				deleted: plan.localDeletes.length + plan.remoteDeletes.length,
+				uploaded: resolvedPlan.uploads.length,
+				downloaded: resolvedPlan.downloads.length,
+				deleted: resolvedPlan.localDeletes.length + resolvedPlan.remoteDeletes.length,
 				conflicts: plan.conflicts.length,
 				skipped: plan.unchanged,
 				errors: [],
@@ -694,5 +721,14 @@ export default class SyncItPlugin extends Plugin {
 				new Notice(`SyncIt: Update check failed — ${msg}`, 8000);
 			}
 		}
+	}
+
+	async showAvailableBuilds() {
+		if (!this._updater) return;
+		const modal = new AvailableBuildsModal(this.app, this._updater, async (build) => {
+			const tempDir = await this._updater!.downloadUpdate(build.release);
+			await this._updater!.installUpdate(tempDir);
+		});
+		modal.open();
 	}
 }

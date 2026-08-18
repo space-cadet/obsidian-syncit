@@ -27,6 +27,26 @@ function builder(index: SyncIndex | null = null) {
 }
 
 describe("SyncPlanBuilder first-sync safety gate", () => {
+	it("honors upload-only and download-only directions for ordinary changes", () => {
+		const local = file("note.md", 20, 20);
+		const remote = file("note.md", 10, 10);
+		const upload = builder({ lastSyncTime: 1, serverSignature: "s", files: {} }).buildPlan([local], [remote], "upload-only");
+		const download = builder({ lastSyncTime: 1, serverSignature: "s", files: {} }).buildPlan([local], [remote], "download-only");
+
+		expect(upload.uploads.map(item => item.path)).toEqual(["note.md"]);
+		expect(upload.downloads).toHaveLength(0);
+		expect(download.downloads.map(item => item.path)).toEqual(["note.md"]);
+		expect(download.uploads).toHaveLength(0);
+	});
+
+	it("ignores unmatched files in the disabled direction", () => {
+		const upload = builder({ lastSyncTime: 1, serverSignature: "s", files: {} }).buildPlan([], [file("remote.md")], "upload-only");
+		const download = builder({ lastSyncTime: 1, serverSignature: "s", files: {} }).buildPlan([file("local.md")], [], "download-only");
+
+		expect(upload.downloads).toHaveLength(0);
+		expect(download.uploads).toHaveLength(0);
+	});
+
 	it("does not upload or download unmatched files without a baseline", () => {
 		const plan = builder().buildPlan(
 			[file("stale-local.md")],

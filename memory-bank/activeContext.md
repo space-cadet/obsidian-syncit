@@ -1,21 +1,31 @@
 # Active Context
 
-*Last Updated: 2026-08-19 00:58 IST*
+*Last Updated: 2026-08-19 03:27 IST*
 
 ## Current Tasks
-- **T14: Sync Direction Dropdown + Policy Settings UI** - New P1 task, implementing now (🔄 In Progress)
-- T13: **Safe Cross-Device Reconciliation** - ✅ MERGED. Reconciliation panel code present but will be temporarily disabled in favor of sync direction dropdown + policy settings. T13c (shared manifest/tombstones) deferred.
-- T5: **Sync History Log** - User's #2 priority (🔄 Next after T14)
+- T14: **Sync Direction Dropdown + Policy Settings UI** - ✅ **COMPLETE** (merged to main)
+  - UI refactor: mode selector + Sync / Dry Run buttons (separation of intent and action)
+  - Replaces the 6-option dropdown with a cleaner 3-mode selector + two action buttons
+- T13: **Safe Cross-Device Reconciliation** - ✅ MERGED. Reconciliation panel code present but conditionally disabled via T14.
+- T5: **Sync History Log** - User's #2 priority (🔄 Next)
 - T6: Selective Sync - User's #3 priority (🔄)
 - T7: Sync Pause and Resume - User's #4 priority (🔄)
 - T10: Trash Mode and Snapshots - User's #7 priority (🔄, needs refinement)
 - T11: Chunked Downloads - User's #8 priority (🔄)
 
 ## Recently Completed (2026-08-19)
-- **T13: Safe Cross-Device Reconciliation** - ✅ Reviewed, approved, merged to main. T13a/T13b implemented. Reconciliation panel code preserved but will be conditionally disabled in favor of sync direction dropdown.
-- **T13 review**: Build clean, 15/15 tests pass. Minor notes: dry-run blocked by reconciliation, `use-local` on remote-only deletes remote file, WebDAV MOVE capability not checked.
-- T2 branch-aware updater: ✅ Complete (merged)
-- T9 Atomic Writes: ✅ Partial (merged) - local temp+rename, WebDAV temp PUT+MOVE
+- **T14: Sync Direction Dropdown + Policy Settings UI** - ✅ Complete. 8 commits on `agent/t14-sync-direction`:
+  - `6636b1a` — Initial sync direction + reconciliation policy settings
+  - `7105d2e` — Sidebar: single Sync button with dropdown, layout fix
+  - `ba40caf` — Updater: branch display, browse builds from all branches
+  - `69caf74` — Fix commit hash regex for markdown-bold release body
+  - `df30d04` — Fix dev build updates by commit hash instead of semver
+  - `d34ec23` — Orphan policies + styled dropdowns
+  - `76924d7` — Dry run applies follow-direction reconciliation
+  - `7ad84f9` — Sync dropdown shows dry run options per mode
+  - `9f7725e` — **UI refactor: mode selector + Sync/Dry Run buttons**
+- All builds pass; tests 17/17 throughout.
+- **T13: Safe Cross-Device Reconciliation** - ✅ Reviewed, approved, merged to main.
 
 ## Recently Completed (2026-08-18)
 - T8: Dry Run Mode ✅ - `performDryRun()`, 2x2 button grid, scan spinner, debug logging
@@ -32,6 +42,7 @@
 - T4 ETag capture is complete, but conflict UI deferred until after sync directions are implemented.
 - T9 atomic writes implemented for text files; binary-safe verification and remote orphan cleanup remain.
 - T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
+- T14 adds persisted default direction and reconciliation policy settings, plus a per-sync sidebar direction selector. Upload-only/download-only are enforced in planning; ambiguous two-way cases still use the T13 review panel for safety.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

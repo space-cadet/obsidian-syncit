@@ -52,10 +52,12 @@ export class SyncSidebarView extends ItemView {
 	private deleted = 0;
 	private conflicts = 0;
 	private currentPlan: SyncPlan | null = null;
+	private selectedMode: ReconciliationMode;
 
 	constructor(leaf: WorkspaceLeaf, plugin: SyncItPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.selectedMode = plugin.settings.syncDirection;
 	}
 
 	getViewType(): string { return SYNC_SIDEBAR_VIEW_TYPE; }
@@ -69,6 +71,8 @@ export class SyncSidebarView extends ItemView {
 		container.style.display = "flex";
 		container.style.flexDirection = "column";
 		container.style.height = "100%";
+		container.style.minWidth = "0";
+		container.style.overflowX = "hidden";
 
 		// Header
 		const header = container.createDiv("syncit-sidebar-header");
@@ -77,6 +81,7 @@ export class SyncSidebarView extends ItemView {
 		header.style.display = "flex";
 		header.style.alignItems = "center";
 		header.style.gap = "8px";
+		header.style.minWidth = "0";
 
 		const icon = header.createEl("span");
 		icon.setText("🔄");
@@ -87,6 +92,15 @@ export class SyncSidebarView extends ItemView {
 		title.style.margin = "0";
 		title.style.fontSize = "1.1em";
 		title.style.fontWeight = "600";
+		title.style.flex = "1";
+		title.style.minWidth = "0";
+
+		this.settingsBtn = header.createEl("button", { attr: { "aria-label": "Open SyncIt settings", "title": "Settings" } });
+		this.settingsBtn.setText("⚙");
+		this.settingsBtn.style.flex = "0 0 auto";
+		this.settingsBtn.style.fontSize = "1.1em";
+		this.settingsBtn.style.padding = "2px 6px";
+		this.settingsBtn.addEventListener("click", () => this.openSettings());
 
 		// Status section (always visible)
 		const statusSection = container.createDiv("syncit-sidebar-status");
@@ -109,29 +123,67 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
-		// Actions section — 2x2 grid for compact layout
+		// Actions section — mode selector + Sync / Dry Run buttons
 		const actionsSection = container.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
-		actionsSection.style.display = "grid";
-		actionsSection.style.gridTemplateColumns = "1fr 1fr";
+		actionsSection.style.display = "flex";
+		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
 
-		this.syncBtn = actionsSection.createEl("button", { text: "Sync Now" });
-		this.syncBtn.addClass("mod-cta");
-		this.syncBtn.addEventListener("click", () => this.plugin.performSync());
+		// Mode selector row
+		const modeRow = actionsSection.createDiv("syncit-mode-selector-row");
+		modeRow.style.display = "flex";
+		modeRow.style.alignItems = "center";
+		modeRow.style.gap = "8px";
 
-		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
-		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
+		const modeLabel = modeRow.createEl("span");
+		modeLabel.style.fontSize = "0.85em";
+		modeLabel.style.color = "var(--text-muted)";
+		modeLabel.setText("Mode");
 
-		this.settingsBtn = actionsSection.createEl("button", { text: "Settings" });
-		this.settingsBtn.addEventListener("click", () => {
-			// @ts-ignore
-			this.app.setting.open();
-			// @ts-ignore
-			this.app.setting.openTabById(this.plugin.manifest.id);
+		const modeSelect = modeRow.createEl("select") as HTMLSelectElement;
+		modeSelect.addClass("syncit-dropdown");
+		modeSelect.style.flex = "1";
+		const modes: Array<{ value: ReconciliationMode; label: string; icon: string }> = [
+			{ value: "two-way", label: "Two-way sync", icon: "↕" },
+			{ value: "upload-only", label: "Upload only", icon: "↑" },
+			{ value: "download-only", label: "Download only", icon: "↓" },
+		];
+		for (const mode of modes) {
+			modeSelect.createEl("option", { value: mode.value, text: `${mode.icon} ${mode.label}` });
+		}
+		modeSelect.value = this.selectedMode;
+		modeSelect.addEventListener("change", () => {
+			this.selectedMode = modeSelect.value as ReconciliationMode;
 		});
 
-		const rebuildBtn = actionsSection.createEl("button", { text: "Rebuild Index" });
+		// Action buttons row
+		const btnRow = actionsSection.createDiv("syncit-action-buttons");
+		btnRow.style.display = "flex";
+		btnRow.style.gap = "8px";
+
+		this.syncBtn = btnRow.createEl("button", { text: "Sync" });
+		this.syncBtn.style.flex = "1";
+		this.syncBtn.addClass("mod-cta");
+		this.syncBtn.addEventListener("click", () => {
+			this.plugin.performSync(this.selectedMode);
+		});
+
+		const dryRunBtn = btnRow.createEl("button", { text: "Dry Run" });
+		dryRunBtn.style.flex = "1";
+		dryRunBtn.addEventListener("click", () => {
+			this.plugin.performDryRun(this.selectedMode);
+		});
+
+		// Secondary actions
+		const secondaryRow = actionsSection.createDiv("syncit-secondary-actions");
+		secondaryRow.style.display = "flex";
+		secondaryRow.style.gap = "8px";
+		secondaryRow.style.marginTop = "4px";
+
+		const rebuildBtn = secondaryRow.createEl("button", { text: "Rebuild Index" });
+		rebuildBtn.style.flex = "1";
+		rebuildBtn.style.fontSize = "0.85em";
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		// Spacer
@@ -172,6 +224,17 @@ export class SyncSidebarView extends ItemView {
 
 		const url = this.plugin.settings.webdavUrl || "Not configured";
 		infoSection.createEl("div", { text: `Server: ${url}` });
+	}
+
+	updateSyncMode() {
+		this.selectedMode = this.plugin.settings.syncDirection;
+	}
+
+
+		// @ts-ignore Obsidian's settings API is not exposed in the public typings.
+		this.app.setting.open();
+		// @ts-ignore
+		this.app.setting.openTabById(this.plugin.manifest.id);
 	}
 
 	// ─── Progress API ───
@@ -396,7 +459,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI(); // removes bar, stats, cancel — log stays
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText("Sync");
 		this._showCompletionSummary(result, elapsed);
 	}
 
@@ -415,7 +478,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText("Sync");
 
 		// Show summary cards
 		const container = this.containerEl.children[1] as HTMLElement;
@@ -478,7 +541,7 @@ export class SyncSidebarView extends ItemView {
 		note.style.fontSize = "0.8em";
 		note.style.color = "var(--text-faint)";
 		note.style.fontStyle = "italic";
-		note.setText("No changes were made. Click 'Sync Now' to apply.");
+		note.setText("No changes were made. Choose a direction and click the sync button to apply.");
 	}
 
 	setCancelled() {
@@ -494,7 +557,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText("Sync");
 	}
 
 	setError(message: string) {
@@ -510,7 +573,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText("Sync");
 	}
 
 	// ─── Idle State ───
@@ -525,7 +588,7 @@ export class SyncSidebarView extends ItemView {
 	setSyncing(syncing: boolean) {
 		if (!syncing && !this.isSyncing) {
 			(this.syncBtn as HTMLButtonElement).disabled = false;
-			this.syncBtn.setText("Sync Now");
+			this.syncBtn.setText("Sync");
 		}
 	}
 

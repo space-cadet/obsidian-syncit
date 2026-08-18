@@ -81,3 +81,31 @@
 	gap: 0.5em;
 	justify-content: flex-end;
 }
+
+/* Settings dropdowns — match Obsidian theme */
+.syncit-dropdown {
+	background: var(--background-modifier-form-field) !important;
+	border: 1px solid var(--background-modifier-border) !important;
+	border-radius: 4px !important;
+	color: var(--text-normal) !important;
+	padding: 4px 8px !important;
+	font-size: var(--font-ui-small) !important;
+	cursor: pointer;
+	min-width: 180px;
+}
+
+.syncit-dropdown:hover {
+	border-color: var(--interactive-accent) !important;
+}
+
+.syncit-dropdown:focus {
+	outline: none;
+	border-color: var(--interactive-accent) !important;
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.syncit-dropdown option {
+	background: var(--background-primary);
+	color: var(--text-normal);
+	padding: 6px 8px;
+}
