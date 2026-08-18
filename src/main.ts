@@ -160,6 +160,7 @@ export default class SyncItPlugin extends Plugin {
 
 		// T3a: Open sidebar to show progress
 		this.openSidebarView();
+		this._sidebarView?.setScanning();
 		new Notice("SyncIt: Sync started — see sidebar for progress", 3000);
 
 		try {
@@ -294,6 +295,7 @@ export default class SyncItPlugin extends Plugin {
 		this.updateStatusBar("Dry run...");
 		this._sidebarView?.setSyncing(true);
 		this.openSidebarView();
+		this._sidebarView?.setScanning();
 		new Notice("SyncIt: Dry run started — previewing changes", 3000);
 
 		try {
@@ -321,7 +323,20 @@ export default class SyncItPlugin extends Plugin {
 			if (index) {
 				const entryCount = Object.keys(index.files).length;
 				await this._logDebug("INFO", `DryRun index entries=${entryCount}`);
-				await this._logDebug("INFO", `DryRun index sig=${index.serverSignature}`);
+			} else {
+				// Try to read the raw index file to show stored signature
+				try {
+					const rawPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/sync-index.json`;
+					if (await this.app.vault.adapter.exists(rawPath)) {
+						const raw = await this.app.vault.adapter.read(rawPath);
+						const parsed = JSON.parse(raw);
+						await this._logDebug("INFO", `DryRun index file signature=${parsed.serverSignature}`);
+					} else {
+						await this._logDebug("INFO", "DryRun index file not found on disk");
+					}
+				} catch (e) {
+					await this._logDebug("INFO", "DryRun failed to read index file");
+				}
 			}
 
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);

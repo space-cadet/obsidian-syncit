@@ -30,14 +30,19 @@ export class SyncIndexManager {
 	/**
 	 * Generate a server signature from connection config.
 	 * If the signature changes, the index is invalidated.
+	 *
+	 * Normalizes inputs to avoid signature mismatches from trivial
+	 * formatting differences (trailing slashes, whitespace).
 	 */
 	static makeServerSignature(config: {
 		url: string;
 		username: string;
 		baseDir: string;
 	}): string {
-		// Simple hash of the connection params
-		const raw = `${config.url}|${config.username}|${config.baseDir}`;
+		const url = config.url.trim().replace(/\/$/, "");
+		const username = config.username.trim();
+		const baseDir = config.baseDir.trim().replace(/^\//, "").replace(/\/$/, "");
+		const raw = `${url}|${username}|${baseDir}`;
 		let hash = 0;
 		for (let i = 0; i < raw.length; i++) {
 			const char = raw.charCodeAt(i);

@@ -98,24 +98,21 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
-		// Actions section
+		// Actions section — 2x2 grid for compact layout
 		const actionsSection = container.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
-		actionsSection.style.display = "flex";
-		actionsSection.style.flexDirection = "column";
+		actionsSection.style.display = "grid";
+		actionsSection.style.gridTemplateColumns = "1fr 1fr";
 		actionsSection.style.gap = "8px";
 
 		this.syncBtn = actionsSection.createEl("button", { text: "Sync Now" });
 		this.syncBtn.addClass("mod-cta");
-		this.syncBtn.style.width = "100%";
 		this.syncBtn.addEventListener("click", () => this.plugin.performSync());
 
 		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
-		dryRunBtn.style.width = "100%";
 		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
 
 		this.settingsBtn = actionsSection.createEl("button", { text: "Settings" });
-		this.settingsBtn.style.width = "100%";
 		this.settingsBtn.addEventListener("click", () => {
 			// @ts-ignore
 			this.app.setting.open();
@@ -123,10 +120,7 @@ export class SyncSidebarView extends ItemView {
 			this.app.setting.openTabById(this.plugin.manifest.id);
 		});
 
-		// Rebuild Index button
 		const rebuildBtn = actionsSection.createEl("button", { text: "Rebuild Index" });
-		rebuildBtn.style.width = "100%";
-		rebuildBtn.style.marginTop = "4px";
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		// Spacer
@@ -383,6 +377,16 @@ export class SyncSidebarView extends ItemView {
 		if (!syncing && !this.isSyncing) {
 			(this.syncBtn as HTMLButtonElement).disabled = false;
 			this.syncBtn.setText("Sync Now");
+		}
+	}
+
+	/** Show spinner during scan phase (before plan is ready). */
+	setScanning() {
+		this.statusEl.setText("Scanning...");
+		this.lastSyncEl.setText("Comparing local and remote files");
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("⏳ Scanning...");
+			this.logHeaderEl.style.color = "var(--interactive-accent)";
 		}
 	}
 
