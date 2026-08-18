@@ -1,11 +1,21 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 12:25 IST*
+*Last Updated: 2026-08-18 12:55 IST*
 
 ---
 
 ## 2026-08-18
+
+#### 12:55:00 IST - T13b: Add reconciliation review and sidebar fixes
+- Modified `src/types.ts` - Added reconciliation decisions/modes and optional target paths for keep-both copies
+- Modified `src/sync/SyncPlan.ts` - Applied explicit decisions into uploads, downloads, local deletes, remote deletes, and keep-both copies
+- Modified `src/main.ts` - Revalidated selected decisions against a fresh plan before transfer and added dry-run local-delete accounting
+- Modified `src/ui/SyncSidebarView.ts` - Added reconciliation review controls, policy shortcuts, decision details, dry-run labels, and larger scroll areas
+- Modified `src/ui/SyncProgressModal.ts` - Included local and remote deletions in operation totals
+- Modified `tests/sync-plan-reconciliation.test.ts` - Covered stale local deletion, remote deletion, keep-both, and download-only policy
+- Verification: `pnpm build` passed; `pnpm test` passed with 4 files and 15 tests; `git diff --check` passed
+- Remaining T13 work: shared remote manifest/tombstones and persistent cross-device deletion history
 
 #### 12:25:00 IST - T9: Implement atomic write slice
 - Created `src/sync/AtomicWrite.ts` - Shared temp-file marker and same-directory temp paths

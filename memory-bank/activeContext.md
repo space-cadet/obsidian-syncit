@@ -1,9 +1,9 @@
 # Active Context
 
-*Last Updated: 2026-08-18 12:04 IST*
+*Last Updated: 2026-08-18 12:55 IST*
 
 ## Current Tasks
-- T13: **Safe Cross-Device Reconciliation and Shared Sync State** — P0 data-safety work (🔄 T13a implemented; T13b next)
+- T13: **Safe Cross-Device Reconciliation and Shared Sync State** — P0 data-safety work (🔄 T13a/T13b implemented; T13c next)
 - T5: **Sync History Log** — User's #2 priority (🔄 Next)
 - T6: Selective Sync — User's #3 priority (🔄)
 - T7: Sync Pause and Resume — User's #4 priority (🔄)
@@ -26,8 +26,9 @@
 - Cross-device deletion: the local sync index cannot record deletions for another device. T13 plans a remote manifest with tombstones.
 - T8 is complete as a preview-only dry run; its missing confirmation/apply flow is now part of T13.
 - T4 ETag capture is complete, but conflict UI, keep-both, move detection, and shared deletion history remain planned under T13.
-- T13a now blocks ambiguous first-sync and possible-deletion plans before transfer. T13b must add the explicit decision UI; T13c must add the shared manifest and tombstones.
+- T13a blocks ambiguous first-sync and possible-deletion plans before transfer. T13b now adds explicit per-file decisions, first-review direction shortcuts, safe local/remote deletion actions, keep-both handling, and apply-time revalidation. T13c must add the shared manifest and tombstones.
 - T9 now writes local files through same-directory temporary paths and adapter rename, and remote files through temporary WebDAV PUT plus MOVE. Failed writes clean up temporary files; tests cover success, write failure, rename/MOVE failure, and local startup cleanup.
+- T13b now provides the reconciliation review/apply panel, explicit use-local/use-remote/keep-both/cancel choices, first-review policy shortcuts, safe local deletion, dry-run “Would ...” labels, and larger scroll areas. Build passed; 15 tests passed. T13c shared manifest/tombstones remain.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

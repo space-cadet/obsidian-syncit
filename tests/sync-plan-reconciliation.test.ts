@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("obsidian", () => ({ requestUrl: vi.fn() }));
 
 import { SyncPlanBuilder } from "../src/sync/SyncPlan";
-import type { FileEntity, SyncIndex } from "../src/types";
+import type {
+	FileEntity,
+	ReconciliationDecision,
+	SyncIndex,
+} from "../src/types";
 import type { VaultScanner } from "../src/local/VaultScanner";
 import type { WebDAVAdapter } from "../src/remote/WebDAVAdapter";
 
@@ -66,5 +70,53 @@ describe("SyncPlanBuilder first-sync safety gate", () => {
 		expect(plan.requiresReconciliation).toBe(true);
 		expect(plan.reconciliation[0]?.reason).toBe("possible-remote-deletion");
 		expect(plan.uploads).toHaveLength(0);
+	});
+
+	it("resolves a stale local-only file as a safe local deletion", () => {
+		const plan = builder().buildPlan([file("old.md")], []);
+		const resolved = builder().applyReconciliationDecisions(
+			plan,
+			{ "old.md": "use-remote" as ReconciliationDecision },
+			"two-way",
+		);
+
+		expect(resolved.requiresReconciliation).toBe(false);
+		expect(resolved.localDeletes.map(item => item.path)).toEqual(["old.md"]);
+		expect(resolved.uploads).toHaveLength(0);
+	});
+
+	it("resolves a remote-only file as an explicit remote deletion", () => {
+		const plan = builder().buildPlan([], [file("remote-old.md")]);
+		const resolved = builder().applyReconciliationDecisions(
+			plan,
+			{ "remote-old.md": "use-local" as ReconciliationDecision },
+			"two-way",
+		);
+
+		expect(resolved.requiresReconciliation).toBe(false);
+		expect(resolved.remoteDeletes.map(item => item.path)).toEqual(["remote-old.md"]);
+	});
+
+	it("keeps both sides of a same-path conflict by creating a remote copy", () => {
+		const plan = builder().buildPlan([file("note.md", 20, 10)], [file("note.md", 10, 20)]);
+		const resolved = builder().applyReconciliationDecisions(
+			plan,
+			{ "note.md": "keep-both" as ReconciliationDecision },
+			"two-way",
+		);
+
+		expect(resolved.requiresReconciliation).toBe(false);
+		expect(resolved.uploads[0]?.path).toBe("note.md");
+		expect(resolved.uploads[0]?.targetPath).toBe("note (local copy).md");
+		expect(resolved.downloads).toHaveLength(0);
+	});
+
+	it("supports download-only mode without requiring per-file choices", () => {
+		const plan = builder().buildPlan([file("stale.md")], [file("remote.md")]);
+		const resolved = builder().applyReconciliationDecisions(plan, {}, "download-only");
+
+		expect(resolved.requiresReconciliation).toBe(false);
+		expect(resolved.localDeletes.map(item => item.path)).toEqual(["stale.md"]);
+		expect(resolved.downloads.map(item => item.path)).toEqual(["remote.md"]);
 	});
 });

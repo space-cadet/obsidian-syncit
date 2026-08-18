@@ -42,6 +42,8 @@ export interface FileEntity {
 	mtime: number;
 	size: number;
 	etag?: string;
+	/** Optional destination used when keeping both sides of a conflict. */
+	targetPath?: string;
 }
 
 export interface SyncIndexEntry {
@@ -85,6 +87,10 @@ export interface ReconciliationItem {
 	local?: FileEntity;
 	remote?: FileEntity;
 }
+
+export type ReconciliationDecision = "use-local" | "use-remote" | "keep-both" | "skip";
+
+export type ReconciliationMode = "two-way" | "upload-only" | "download-only";
 
 export interface SyncResult {
 	uploaded: number;

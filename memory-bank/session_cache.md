@@ -55,8 +55,8 @@
 3. `sessions/2026-08-17-afternoon.md` — T12a-T12c speed optimization, T3 modal refinements, repo published
 
 ## System Status
-- **Memory Bank**: ✅ T13a implementation recorded
-- **Project**: T13a implemented; T13b decision UI and T13c shared manifest remain
+- **Memory Bank**: ✅ T13a/T13b implementation recorded
+- **Project**: T13a/T13b implemented; T13c shared manifest and tombstones remain
 
 ## T9 Atomic Write Slice
 
@@ -67,5 +67,15 @@
 - Added a Vitest alias and Obsidian host stub so tests do not depend on Obsidian's non-Node package entry.
 - Verification: production build passed; 4 test files and 11 Vitest tests passed with the normal `pnpm test` command.
 - Remaining T9 work: remote orphan cleanup after a crash, binary-safe atomic write verification, and explicit capability handling for WebDAV servers without `MOVE`.
+
+## T13b Reconciliation Review Slice
+
+- Added an explicit sidebar review for ambiguous and possible-deletion items.
+- Added use-local, use-remote, keep-both, cancel, and first-review two-way/upload-only/download-only policy controls.
+- Apply is disabled until every item is resolved; the plan is re-scanned and matched before transfers start.
+- Use-remote can remove stale local files using the existing trash setting; use-local can restore or explicitly delete remote-only paths.
+- Dry-run rows now use “Would ...” labels, and the activity/reconciliation scroll areas have usable height.
+- Verification: `pnpm build` passed; `pnpm test` passed with 4 test files and 15 tests; `git diff --check` passed.
+- Remaining T13 work: shared remote manifest/tombstones, persistent direction settings, cross-device deletion history, and broader conflict/move handling.
 - **Commits pushed**: `29420a9`, `1d14350`, `9e22149`, `5b1680e`, `e3e030e`, `aaa1d4a`, `fd784b2`
-- **Next**: Implement T13b reconciliation decisions, then T13c shared manifest/tombstones
+- **Next**: Implement T13c shared manifest/tombstones and persistent cross-device deletion history

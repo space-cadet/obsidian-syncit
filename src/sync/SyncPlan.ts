@@ -1,4 +1,11 @@
-import type { FileEntity, SyncPlan, SyncResult, SyncIndex } from "../types";
+import type {
+	FileEntity,
+	ReconciliationDecision,
+	ReconciliationMode,
+	SyncPlan,
+	SyncResult,
+	SyncIndex,
+} from "../types";
 import type { SyncIndexManager } from "./SyncIndex";
 import { WebDAVAdapter, SyncCancelledError } from "../remote/WebDAVAdapter";
 import type { VaultScanner } from "../local/VaultScanner";
@@ -131,6 +138,80 @@ export class SyncPlanBuilder {
 		return plan;
 	}
 
+	/**
+	 * Turn explicit reconciliation choices into ordinary transfer operations.
+	 * Unresolved choices remain blocked so a skipped item cannot become an
+	 * accidental upload on the next run.
+	 */
+	applyReconciliationDecisions(
+		plan: SyncPlan,
+		decisions: Record<string, ReconciliationDecision>,
+		mode: ReconciliationMode,
+	): SyncPlan {
+		const resolved: SyncPlan = {
+			...plan,
+			uploads: [...plan.uploads],
+			downloads: [...plan.downloads],
+			localDeletes: [...plan.localDeletes],
+			remoteDeletes: [...plan.remoteDeletes],
+			conflicts: [...plan.conflicts],
+			reconciliation: [],
+			requiresReconciliation: false,
+		};
+		const occupiedPaths = new Set([
+			...plan.uploads.map(file => file.path),
+			...plan.downloads.map(file => file.path),
+			...plan.reconciliation.map(item => item.path),
+		]);
+
+		for (const item of plan.reconciliation) {
+			const decision = decisions[item.path] ??
+				(mode === "upload-only" ? "use-local" : mode === "download-only" ? "use-remote" : "skip");
+			if (decision === "skip") {
+				resolved.reconciliation.push(item);
+				continue;
+			}
+
+			if (decision === "use-local") {
+				if (item.local) {
+					resolved.uploads.push(item.local);
+					resolved.uploadSize += item.local.size;
+				} else if (item.remote) {
+					resolved.remoteDeletes.push(item.remote);
+				}
+				continue;
+			}
+
+			if (decision === "use-remote") {
+				if (item.remote) {
+					resolved.downloads.push(item.remote);
+					resolved.downloadSize += item.remote.size;
+				} else if (item.local) {
+					resolved.localDeletes.push(item.local);
+				}
+				continue;
+			}
+
+			// Keeping both is meaningful for a same-path conflict. For a file
+			// present on only one side, preserving that side is the safe result.
+			if (item.local && item.remote) {
+				const copyPath = makeCopyPath(item.local.path, "local", occupiedPaths);
+				occupiedPaths.add(copyPath);
+				resolved.uploads.push({ ...item.local, targetPath: copyPath });
+				resolved.uploadSize += item.local.size;
+			} else if (item.local) {
+				resolved.uploads.push(item.local);
+				resolved.uploadSize += item.local.size;
+			} else if (item.remote) {
+				resolved.downloads.push(item.remote);
+				resolved.downloadSize += item.remote.size;
+			}
+		}
+
+		resolved.requiresReconciliation = resolved.reconciliation.length > 0;
+		return resolved;
+	}
+
 	// ─── Phase 3: Transfer ───
 
 	async executePlan(
@@ -150,7 +231,7 @@ export class SyncPlanBuilder {
 			downloadedBytes: 0,
 		};
 
-		const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
+		const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 		let completedOps = 0;
 		const totalTransferBytes = plan.uploadSize + plan.downloadSize;
 
@@ -166,10 +247,10 @@ export class SyncPlanBuilder {
 				if (this.adapter.isAborted()) throw new SyncCancelledError();
 				try {
 					const content = await this.scanner.readFile(file.path);
-					await this.adapter.writeFile(file.path, content);
+					await this.adapter.writeFile(file.targetPath ?? file.path, content);
 					result.uploaded++;
 					result.uploadedBytes += file.size;
-					reportProgress("uploading", file.path, result.uploadedBytes + result.downloadedBytes);
+					reportProgress("uploading", file.targetPath ?? file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
 					result.errors.push(`Upload failed: ${file.path} — ${error}`);
@@ -225,7 +306,24 @@ export class SyncPlanBuilder {
 			});
 		}
 
-		// Handle deletions (sequential — destructive)
+		// Handle local deletions (sequential — destructive, normally to trash)
+		if (plan.localDeletes.length > 0) {
+			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
+			for (const file of plan.localDeletes) {
+				if (this.adapter.isAborted()) throw new SyncCancelledError();
+				try {
+					await this.scanner.deleteFile(file.path);
+					result.deleted++;
+					reportProgress("deleting-local", file.path, result.uploadedBytes + result.downloadedBytes);
+				} catch (error) {
+					if (error instanceof SyncCancelledError) throw error;
+					result.errors.push(`Local delete failed: ${file.path} — ${error}`);
+					reportProgress("delete-local (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+				}
+			}
+		}
+
+		// Handle remote deletions (sequential — destructive)
 		if (plan.remoteDeletes.length > 0) {
 			if (isCancelled?.() || this.adapter.isAborted()) throw new SyncCancelledError();
 			for (const file of plan.remoteDeletes) {
@@ -281,4 +379,19 @@ async function runWithConcurrency<T>(
 		await Promise.allSettled(executing);
 		throw error;
 	}
+}
+
+function makeCopyPath(path: string, side: "local" | "remote", occupied: Set<string>): string {
+	const separator = path.lastIndexOf("/");
+	const directory = separator >= 0 ? path.slice(0, separator + 1) : "";
+	const filename = separator >= 0 ? path.slice(separator + 1) : path;
+	const extensionIndex = filename.lastIndexOf(".");
+	const stem = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+	const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : "";
+	let candidate = `${directory}${stem} (${side} copy)${extension}`;
+	let counter = 2;
+	while (occupied.has(candidate)) {
+		candidate = `${directory}${stem} (${side} copy ${counter++})${extension}`;
+	}
+	return candidate;
 }

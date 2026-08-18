@@ -39,12 +39,12 @@ export class SyncProgressModal extends Modal {
 	}
 
 	setPlan(plan: SyncPlan) {
-		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged;
+		this.scanned = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.unchanged;
 		this.uploaded = 0;
 		this.skipped = plan.unchanged;
 		this.overwritten = 0;
 		this.conflicts = 0;
-		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
+		this.totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 		this.completedOps = 0;
 		this.updateStats();
 	}

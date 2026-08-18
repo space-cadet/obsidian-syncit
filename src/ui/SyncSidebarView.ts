@@ -1,8 +1,18 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import type SyncItPlugin from "../main";
-import type { SyncPlan, SyncResult, FileEntity } from "../types";
+import type {
+	FileEntity,
+	ReconciliationDecision,
+	ReconciliationMode,
+	SyncPlan,
+	SyncResult,
+} from "../types";
 
 export const SYNC_SIDEBAR_VIEW_TYPE = "syncit-sidebar";
+
+type FileLogOperation =
+	| "upload" | "download" | "conflict" | "error" | "delete"
+	| "planned-upload" | "planned-download" | "planned-conflict" | "planned-error" | "planned-delete";
 
 export class SyncSidebarView extends ItemView {
 	private plugin: SyncItPlugin;
@@ -22,6 +32,7 @@ export class SyncSidebarView extends ItemView {
 	private fileLogEl: HTMLElement | null = null;
 	private cancelBtn: HTMLElement | null = null;
 	private completionSection: HTMLElement | null = null;
+	private reconciliationSection: HTMLElement | null = null;
 	// Persistent log section (always visible)
 	private logSection: HTMLElement | null = null;
 	private logHeaderEl: HTMLElement | null = null;
@@ -125,7 +136,7 @@ export class SyncSidebarView extends ItemView {
 
 		// Spacer
 		const spacer = container.createDiv();
-		spacer.style.flex = "1";
+		spacer.style.flex = "0 0 0";
 
 		// Persistent sync log section (always visible)
 		this.logSection = container.createDiv("syncit-sidebar-log");
@@ -133,7 +144,9 @@ export class SyncSidebarView extends ItemView {
 		this.logSection.style.borderTop = "1px solid var(--background-modifier-border)";
 		this.logSection.style.display = "flex";
 		this.logSection.style.flexDirection = "column";
-		this.logSection.style.minHeight = "200px";
+		this.logSection.style.flex = "1 1 0";
+		this.logSection.style.minHeight = "260px";
+		this.logSection.style.maxHeight = "60vh";
 
 		this.logHeaderEl = this.logSection.createEl("div");
 		this.logHeaderEl.style.fontSize = "0.75em";
@@ -143,6 +156,7 @@ export class SyncSidebarView extends ItemView {
 
 		this.logListEl = this.logSection.createDiv();
 		this.logListEl.style.flex = "1";
+		this.logListEl.style.minHeight = "0";
 		this.logListEl.style.overflowY = "auto";
 		this.logListEl.style.display = "flex";
 		this.logListEl.style.flexDirection = "column";
@@ -165,17 +179,18 @@ export class SyncSidebarView extends ItemView {
 	/** Phase 2: Show pre-sync plan summary. */
 	setPlan(plan: SyncPlan) {
 		this.isSyncing = true;
+		this._removeReconciliationUI();
 		this.startTime = Date.now();
 		this._clearLog();
 		if (this.logHeaderEl) {
 			this.logHeaderEl.setText("Syncing…");
 			this.logHeaderEl.style.color = "var(--interactive-accent)";
 		}
-		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
+		this.totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 		this.completedOps = 0;
 		this.totalBytes = plan.uploadSize + plan.downloadSize;
 		this.transferredBytes = 0;
-		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged + plan.remoteDeletes.length + plan.reconciliation.length;
+		this.scanned = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.unchanged + plan.remoteDeletes.length + plan.reconciliation.length;
 		this.uploaded = 0;
 		this.skipped = plan.unchanged;
 		this.overwritten = 0;
@@ -189,7 +204,8 @@ export class SyncSidebarView extends ItemView {
 		const parts: string[] = [];
 		if (plan.uploads.length > 0) parts.push(`${plan.uploads.length}↑ ${formatBytes(plan.uploadSize)}`);
 		if (plan.downloads.length > 0) parts.push(`${plan.downloads.length}↓ ${formatBytes(plan.downloadSize)}`);
-		if (plan.remoteDeletes.length > 0) parts.push(`${plan.remoteDeletes.length}🗑`);
+		const deleteCount = plan.localDeletes.length + plan.remoteDeletes.length;
+		if (deleteCount > 0) parts.push(`${deleteCount}🗑`);
 		if (plan.unchanged > 0) parts.push(`${plan.unchanged}⏭`);
 		if (plan.reconciliation.length > 0) parts.push(`${plan.reconciliation.length}⚠️ review`);
 		this.lastSyncEl.setText(parts.join(" · ") || "Nothing to sync");
@@ -211,13 +227,122 @@ export class SyncSidebarView extends ItemView {
 		);
 		this._removeProgressUI();
 		this._removeCompletionUI();
+		this._renderReconciliationReview(plan);
 		if (this.logHeaderEl) {
 			this.logHeaderEl.setText("⚠️ Reconciliation required");
 			this.logHeaderEl.style.color = "var(--text-warning)";
 		}
-		this.syncBtn.style.display = "block";
-		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.style.display = "none";
+	}
+
+	private _renderReconciliationReview(plan: SyncPlan) {
+		this._removeReconciliationUI();
+		const container = this.containerEl.children[1] as HTMLElement;
+		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		if (!actionsSection) return;
+
+		this.reconciliationSection = container.createDiv("syncit-sidebar-reconciliation");
+		this.reconciliationSection.style.padding = "0 16px 12px";
+		container.insertBefore(this.reconciliationSection, actionsSection);
+
+		const title = this.reconciliationSection.createEl("div");
+		title.style.fontWeight = "600";
+		title.style.color = "var(--text-warning)";
+		title.setText("⚠️ Review before syncing");
+
+		const description = this.reconciliationSection.createEl("div");
+		description.style.fontSize = "0.8em";
+		description.style.color = "var(--text-muted)";
+		description.style.margin = "4px 0 8px";
+		description.setText("Nothing will change until you choose an action for every file.");
+
+		const modeRow = this.reconciliationSection.createDiv();
+		modeRow.style.display = "flex";
+		modeRow.style.alignItems = "center";
+		modeRow.style.gap = "8px";
+		modeRow.style.marginBottom = "8px";
+		const modeLabel = modeRow.createEl("span");
+		modeLabel.style.fontSize = "0.8em";
+		modeLabel.setText("Default policy");
+		const modeSelect = modeRow.createEl("select") as HTMLSelectElement;
+		modeSelect.style.flex = "1";
+		const modes: Array<{ value: ReconciliationMode; label: string }> = [
+			{ value: "two-way", label: "Two-way — review each file" },
+			{ value: "upload-only", label: "Upload-only — keep local files" },
+			{ value: "download-only", label: "Download-only — use remote files" },
+		];
+		for (const mode of modes) {
+			modeSelect.createEl("option", { value: mode.value, text: mode.label });
+		}
+
+		const itemList = this.reconciliationSection.createDiv();
+		itemList.style.maxHeight = "min(52vh, 460px)";
+		itemList.style.overflowY = "auto";
+		itemList.style.border = "1px solid var(--background-modifier-border)";
+		itemList.style.borderRadius = "6px";
+		itemList.style.padding = "4px";
+
+		const itemSelects = new Map<string, HTMLSelectElement>();
+		for (const item of plan.reconciliation) {
+			const row = itemList.createDiv();
+			row.style.padding = "8px";
+			row.style.borderBottom = "1px solid var(--background-modifier-border)";
+			row.style.minWidth = "0";
+
+			const pathEl = row.createEl("div");
+			pathEl.style.fontWeight = "500";
+			pathEl.style.overflow = "hidden";
+			pathEl.style.textOverflow = "ellipsis";
+			pathEl.style.whiteSpace = "nowrap";
+			pathEl.setText(item.path);
+
+			const reasonEl = row.createEl("div");
+			reasonEl.style.fontSize = "0.75em";
+			reasonEl.style.color = "var(--text-muted)";
+			reasonEl.setText(`${reconciliationReasonLabel(item.reason)} · ${fileSummary(item)}`);
+
+			const choice = row.createEl("select") as HTMLSelectElement;
+			choice.style.width = "100%";
+			choice.style.marginTop = "5px";
+			for (const option of [
+				{ value: "skip", label: "Choose an action" },
+				{ value: "use-local", label: "Use local version" },
+				{ value: "use-remote", label: "Use remote version" },
+				{ value: "keep-both", label: "Keep both versions" },
+			]) {
+				choice.createEl("option", { value: option.value, text: option.label });
+			}
+			itemSelects.set(item.path, choice);
+		}
+
+		const buttonRow = this.reconciliationSection.createDiv();
+		buttonRow.style.display = "flex";
+		buttonRow.style.gap = "8px";
+		buttonRow.style.marginTop = "8px";
+		const cancelButton = buttonRow.createEl("button", { text: "Cancel" });
+		const applyButton = buttonRow.createEl("button", { text: "Apply decisions" });
+		applyButton.addClass("mod-cta");
+		applyButton.disabled = true;
+
+		const updateApplyState = () => {
+			applyButton.disabled = Array.from(itemSelects.values()).some(select => select.value === "skip");
+		};
+		for (const select of itemSelects.values()) {
+			select.addEventListener("change", updateApplyState);
+		}
+		modeSelect.addEventListener("change", () => {
+			const decision = modeSelect.value === "upload-only" ? "use-local" : modeSelect.value === "download-only" ? "use-remote" : "skip";
+			for (const select of itemSelects.values()) select.value = decision;
+			updateApplyState();
+		});
+		cancelButton.addEventListener("click", () => this.plugin.cancelReconciliation());
+		applyButton.addEventListener("click", () => {
+			const decisions: Record<string, ReconciliationDecision> = {};
+			for (const [path, select] of itemSelects) {
+				decisions[path] = select.value as ReconciliationDecision;
+			}
+			this.plugin.applyReconciliation(plan, modeSelect.value as ReconciliationMode, decisions);
+		});
 	}
 
 	/** Phase 3: Called during transfer with size-based progress. */
@@ -246,18 +371,19 @@ export class SyncSidebarView extends ItemView {
 		// File log
 		let size = 0;
 		if (this.currentPlan) {
-			const uploadFile = this.currentPlan.uploads.find(f => f.path === path);
-			const downloadFile = this.currentPlan.downloads.find(f => f.path === path);
+			const uploadFile = this.currentPlan.uploads.find(f => f.path === path || f.targetPath === path);
+			const downloadFile = this.currentPlan.downloads.find(f => f.path === path || f.targetPath === path);
 			const conflict = this.currentPlan.conflicts.find(c => c.local.path === path || c.remote.path === path);
 			size = uploadFile?.size ?? downloadFile?.size ?? 0;
 			if (conflict) size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
 		}
 
-		this._addFileLogEntry(path, opType, { size });
+		this._addFileLogEntry(path, operation.includes("(dry-run)") ? `planned-${opType}` : opType, { size });
 	}
 
 	finish(result: SyncResult & { message: string }) {
 		this.isSyncing = false;
+		this._removeReconciliationUI();
 		const elapsed = Date.now() - this.startTime;
 		if (this.logHeaderEl) {
 			this.logHeaderEl.setText(`✅ Sync complete · ${formatDuration(elapsed)}`);
@@ -277,6 +403,7 @@ export class SyncSidebarView extends ItemView {
 	/** Show dry run result — no transfers happened. */
 	showDryRunResult(result: SyncResult & { message: string }) {
 		this.isSyncing = false;
+		this._removeReconciliationUI();
 		if (this.logHeaderEl) {
 			this.logHeaderEl.setText("🧪 Dry run complete — no changes made");
 			this.logHeaderEl.style.color = "var(--text-accent)";
@@ -310,7 +437,7 @@ export class SyncSidebarView extends ItemView {
 		const cards: Array<{ count: number; label: string; sub: string; icon: string; color: string }> = [
 			{ count: result.uploaded, label: "would upload", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
 			{ count: result.downloaded, label: "would download", sub: formatBytes(result.downloadedBytes), icon: "🔄", color: "var(--color-blue)" },
-			{ count: result.deleted, label: "would delete", sub: "from remote", icon: "🗑", color: "var(--text-error)" },
+			{ count: result.deleted, label: "would delete", sub: "local or remote", icon: "🗑", color: "var(--text-error)" },
 			{ count: result.conflicts, label: "conflicts", sub: "need review", icon: "⚠️", color: "var(--color-orange)" },
 			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
 		];
@@ -356,6 +483,7 @@ export class SyncSidebarView extends ItemView {
 
 	setCancelled() {
 		this.isSyncing = false;
+		this._removeReconciliationUI();
 		this.statusEl.setText("Cancelled");
 		this.lastSyncEl.setText("Sync was cancelled");
 		this._removeProgressUI();
@@ -371,6 +499,7 @@ export class SyncSidebarView extends ItemView {
 
 	setError(message: string) {
 		this.isSyncing = false;
+		this._removeReconciliationUI();
 		this.statusEl.setText("Sync failed");
 		this.lastSyncEl.setText(message);
 		this._removeProgressUI();
@@ -537,7 +666,7 @@ export class SyncSidebarView extends ItemView {
 			{ count: result.uploaded, label: "uploaded", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
 			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
 			{ count: result.downloaded, label: "downloaded", sub: formatBytes(result.downloadedBytes), icon: "🔄", color: "var(--color-blue)" },
-			{ count: result.deleted, label: "deleted", sub: "from remote", icon: "🗑", color: "var(--text-error)" },
+			{ count: result.deleted, label: "deleted", sub: "local or remote", icon: "🗑", color: "var(--text-error)" },
 			{ count: result.conflicts, label: "conflict", sub: "needs review", icon: "⚠️", color: "var(--color-orange)" },
 		];
 
@@ -587,6 +716,13 @@ export class SyncSidebarView extends ItemView {
 		}
 	}
 
+	private _removeReconciliationUI() {
+		if (this.reconciliationSection) {
+			this.reconciliationSection.remove();
+			this.reconciliationSection = null;
+		}
+	}
+
 	private _updateProgressBar() {
 		if (!this.progressFillEl || !this.progressPercentEl || !this.progressSizeEl) return;
 		const pct = this.totalBytes > 0 ? Math.round((this.transferredBytes / this.totalBytes) * 100) : 0;
@@ -609,8 +745,10 @@ export class SyncSidebarView extends ItemView {
 		}
 	}
 
-	private _addFileLogEntry(path: string, operation: "upload" | "download" | "conflict" | "error" | "delete", meta?: { size?: number }) {
+	private _addFileLogEntry(path: string, operation: FileLogOperation, meta?: { size?: number }) {
 		if (!this.logListEl) return;
+		const isPlanned = operation.startsWith("planned-");
+		const baseOperation = (isPlanned ? operation.slice("planned-".length) : operation) as Exclude<FileLogOperation, `planned-${string}`>;
 
 		const row = this.logListEl.createDiv();
 		row.style.display = "flex";
@@ -629,7 +767,7 @@ export class SyncSidebarView extends ItemView {
 		};
 
 		const icon = row.createEl("span");
-		icon.setText(icons[operation] || "•");
+		icon.setText(icons[baseOperation] || "•");
 		icon.style.width = "18px";
 		icon.style.textAlign = "center";
 		icon.style.fontSize = "0.9em";
@@ -657,7 +795,7 @@ export class SyncSidebarView extends ItemView {
 			error: "Failed",
 		};
 		const sizeText = meta?.size ? ` · ${formatBytes(meta.size)}` : "";
-		metaEl.setText(`${subtitles[operation]}${sizeText}`);
+		metaEl.setText(`${isPlanned ? "Would " : ""}${subtitles[baseOperation]}${sizeText}`);
 
 		const badge = row.createEl("span");
 		badge.style.fontSize = "0.7em";
@@ -673,7 +811,7 @@ export class SyncSidebarView extends ItemView {
 			conflict: { bg: "rgba(var(--color-orange-rgb), 0.12)", color: "var(--color-orange)" },
 			error: { bg: "rgba(var(--color-red-rgb), 0.12)", color: "var(--color-red)" },
 		};
-		const style = badgeStyles[operation] || badgeStyles.error;
+		const style = badgeStyles[baseOperation] || badgeStyles.error;
 		badge.style.background = style.bg;
 		badge.style.color = style.color;
 
@@ -684,7 +822,14 @@ export class SyncSidebarView extends ItemView {
 			conflict: "Resolved",
 			error: "Error",
 		};
-		badge.setText(badgeLabels[operation] || "Done");
+		const plannedLabels: Record<string, string> = {
+			upload: "Would upload",
+			download: "Would download",
+			delete: "Would delete",
+			conflict: "Would review",
+			error: "Would fail",
+		};
+		badge.setText(isPlanned ? (plannedLabels[baseOperation] || "Would process") : (badgeLabels[baseOperation] || "Done"));
 
 		while (this.logListEl.children.length > 50) {
 			this.logListEl.firstChild?.remove();
@@ -716,4 +861,21 @@ function formatDuration(ms: number): string {
 	const secs = seconds % 60;
 	if (mins === 0) return `${secs}s`;
 	return `${mins}m ${secs.toString().padStart(2, "0")}s`;
+}
+
+function reconciliationReasonLabel(reason: SyncPlan["reconciliation"][number]["reason"]): string {
+	const labels: Record<typeof reason, string> = {
+		"no-baseline-local-only": "Only on this device; no shared baseline",
+		"no-baseline-remote-only": "Only on the remote; no shared baseline",
+		"no-baseline-conflict": "Both sides differ; no shared baseline",
+		"possible-remote-deletion": "Possible deletion on the remote",
+		"possible-local-deletion": "Possible deletion on this device",
+	};
+	return labels[reason];
+}
+
+function fileSummary(item: SyncPlan["reconciliation"][number]): string {
+	const local = item.local ? `local ${formatBytes(item.local.size)}` : "no local file";
+	const remote = item.remote ? `remote ${formatBytes(item.remote.size)}` : "no remote file";
+	return `${local}, ${remote}`;
 }

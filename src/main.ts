@@ -1,5 +1,10 @@
 import { App, Notice, Plugin, Platform, WorkspaceLeaf } from "obsidian";
-import type { SyncItSettings } from "./types";
+import type {
+	ReconciliationDecision,
+	ReconciliationMode,
+	SyncItSettings,
+	SyncPlan,
+} from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { SyncItSettingTab } from "./settings";
 import { WebDAVAdapter, SyncCancelledError } from "./remote/WebDAVAdapter";
@@ -24,6 +29,11 @@ export default class SyncItPlugin extends Plugin {
 		webdavUsername: string;
 		webdavPassword: string;
 		remoteBaseDir: string;
+	} | null = null;
+	private pendingReconciliation: {
+		key: string;
+		mode: ReconciliationMode;
+		decisions: Record<string, ReconciliationDecision>;
 	} | null = null;
 
 	/** Append a line to the plugin debug log. */
@@ -179,6 +189,34 @@ export default class SyncItPlugin extends Plugin {
 		this.adapter?.abort();
 	}
 
+	/** Apply the decisions selected in the reconciliation review. */
+	applyReconciliation(
+		plan: SyncPlan,
+		mode: ReconciliationMode,
+		decisions: Record<string, ReconciliationDecision>,
+	) {
+		this.pendingReconciliation = {
+			key: this.reconciliationKey(plan),
+			mode,
+			decisions,
+		};
+		void this.performSync();
+	}
+
+	/** Cancel a reconciliation review without changing local or remote files. */
+	cancelReconciliation() {
+		this.pendingReconciliation = null;
+		this._sidebarView?.setCancelled();
+		this.updateStatusBar("Ready");
+	}
+
+	private reconciliationKey(plan: SyncPlan): string {
+		return plan.reconciliation
+			.map(item => `${item.path}:${item.reason}`)
+			.sort()
+			.join("|");
+	}
+
 	async performSync() {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
@@ -226,20 +264,33 @@ export default class SyncItPlugin extends Plugin {
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// Phase 2: Build plan
-			const plan = builder.buildPlan(localFiles, remoteFiles);
-			this._sidebarView?.setPlan(plan);
+			let plan = builder.buildPlan(localFiles, remoteFiles);
 
 			if (plan.requiresReconciliation) {
-				this._sidebarView?.setReconciliationRequired(plan);
-				new Notice(
-					`SyncIt: ${plan.reconciliation.length} file(s) need reconciliation before syncing`,
-					10000,
-				);
-				this.updateStatusBar("Reconciliation required");
-				return;
+				const pending = this.pendingReconciliation;
+				if (!pending || pending.key !== this.reconciliationKey(plan)) {
+					this.pendingReconciliation = null;
+					this._sidebarView?.setReconciliationRequired(plan);
+					new Notice(
+						`SyncIt: ${plan.reconciliation.length} file(s) need reconciliation before syncing`,
+						10000,
+					);
+					this.updateStatusBar("Reconciliation required");
+					return;
+				}
+				plan = builder.applyReconciliationDecisions(plan, pending.decisions, pending.mode);
+				this.pendingReconciliation = null;
+				if (plan.requiresReconciliation) {
+					this._sidebarView?.setReconciliationRequired(plan);
+					new Notice("SyncIt: Choose a decision for every file before applying", 10000);
+					this.updateStatusBar("Reconciliation incomplete");
+					return;
+				}
 			}
 
-			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
+			this._sidebarView?.setPlan(plan);
+
+			const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			if (totalOps === 0) {
 				this._sidebarView?.finish({
@@ -339,6 +390,7 @@ export default class SyncItPlugin extends Plugin {
 		}
 
 		this.isSyncing = true;
+		this.pendingReconciliation = null;
 		this.updateStatusBar("Dry run...");
 		this._sidebarView?.setSyncing(true);
 		this.openSidebarView();
@@ -409,7 +461,7 @@ export default class SyncItPlugin extends Plugin {
 				return;
 			}
 
-			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
+			const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			if (totalOps === 0) {
 				this._sidebarView?.finish({
@@ -435,6 +487,7 @@ export default class SyncItPlugin extends Plugin {
 				...plan.uploads.map(f => ({ op: "uploading (dry-run)", path: f.path, size: f.size })),
 				...plan.downloads.map(f => ({ op: "downloading (dry-run)", path: f.path, size: f.size })),
 				...plan.conflicts.map(c => ({ op: "conflict (dry-run)", path: c.local.path, size: Math.max(c.local.size, c.remote.size) })),
+				...plan.localDeletes.map(f => ({ op: "deleting-local (dry-run)", path: f.path, size: 0 })),
 				...plan.remoteDeletes.map(f => ({ op: "deleting (dry-run)", path: f.path, size: 0 })),
 			];
 
@@ -446,13 +499,13 @@ export default class SyncItPlugin extends Plugin {
 			const result = {
 				uploaded: plan.uploads.length,
 				downloaded: plan.downloads.length,
-				deleted: plan.remoteDeletes.length,
+				deleted: plan.localDeletes.length + plan.remoteDeletes.length,
 				conflicts: plan.conflicts.length,
 				skipped: plan.unchanged,
 				errors: [],
 				uploadedBytes: plan.uploadSize,
 				downloadedBytes: plan.downloadSize,
-				message: `${plan.uploads.length}↑ ${plan.downloads.length}↓ ${plan.remoteDeletes.length}🗑 ${plan.conflicts.length}⚠️`,
+				message: `${plan.uploads.length}↑ ${plan.downloads.length}↓ ${plan.localDeletes.length + plan.remoteDeletes.length}🗑 ${plan.conflicts.length}⚠️`,
 			};
 
 			this._sidebarView?.showDryRunResult(result);
