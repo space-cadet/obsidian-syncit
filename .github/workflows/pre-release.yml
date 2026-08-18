@@ -67,7 +67,13 @@ jobs:
               with:
                   tag: latest-dev
                   name: "Dev Build (latest main)"
-                  body: "Automated pre-release build from the latest commit on `main`. Not for production use."
+                  body: |
+                      Automated pre-release build from the latest commit on `main`.
+
+                      **Commit:** `${{ github.sha }}`
+                      **Built at:** ${{ github.event.head_commit.timestamp }}
+
+                      Not for production use.
                   prerelease: true
                   allowUpdates: true
                   # Keep existing assets until replacement uploads succeed. This

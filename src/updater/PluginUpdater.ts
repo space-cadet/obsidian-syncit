@@ -293,13 +293,34 @@ export class PluginUpdater {
 		const releases = (await fetchJson(
 			`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`,
 		)) as ReleaseInfo[];
-		return releases
-			.filter((release) => release.prerelease && release.tag_name.startsWith("latest-dev"))
-			.map((release) => ({
+
+		// Filter pre-releases with latest-dev-* tags
+		const builds: AvailableBuild[] = [];
+		for (const release of releases.filter(
+			(r) => r.prerelease && r.tag_name.startsWith("latest-dev"),
+		)) {
+			let commitHash = release.body?.match(/\*\*Commit:\*\*\s*`([^`]+)`/)?.[1];
+
+			// Fallback: fetch commit from GitHub API using the tag
+			if (!commitHash) {
+				try {
+					const branch = branchFromRelease(release);
+					const commitInfo = await fetchLatestCommit(branch);
+					if (commitInfo) {
+						commitHash = commitInfo.sha;
+					}
+				} catch {
+					// Ignore fallback errors
+				}
+			}
+
+			builds.push({
 				release,
 				branch: branchFromRelease(release),
-				commitHash: release.body?.match(/\*\*Commit:\*\*\s*`([^`]+)`/)?.[1],
-			}));
+				commitHash,
+			});
+		}
+		return builds;
 	}
 
 	/** Download update files to a temp directory */
