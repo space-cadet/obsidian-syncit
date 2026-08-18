@@ -14,14 +14,16 @@
 - T11: Chunked Downloads - User's #8 priority (🔄)
 
 ## Recently Completed (2026-08-19)
-- **T14: Sync Direction Dropdown + Policy Settings UI** - ✅ Complete. 7 commits on `agent/t14-sync-direction`:
+- **T14: Sync Direction Dropdown + Policy Settings UI** - ✅ Complete. 8 commits on `agent/t14-sync-direction`:
   - `6636b1a` — Initial sync direction + reconciliation policy settings
   - `7105d2e` — Sidebar: single Sync button with dropdown, layout fix
   - `ba40caf` — Updater: branch display, browse builds from all branches
   - `69caf74` — Fix commit hash regex for markdown-bold release body
+  - `df30d04` — Fix dev build updates by commit hash instead of semver
   - `d34ec23` — Orphan policies + styled dropdowns
   - `76924d7` — Dry run applies follow-direction reconciliation
   - `7ad84f9` — Sync dropdown shows dry run options per mode
+  - `9f7725e` — **UI refactor: mode selector + Sync/Dry Run buttons**
 - All builds pass; tests 17/17 throughout.
 - **T13: Safe Cross-Device Reconciliation** - ✅ Reviewed, approved, merged to main.
 
