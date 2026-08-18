@@ -299,8 +299,38 @@ export default class SyncItPlugin extends Plugin {
 			});
 			const index = await this.indexManager?.load(serverSignature) ?? null;
 
+			// DEBUG: Log index state
+			console.log("[SyncIt DryRun] Server signature:", serverSignature);
+			console.log("[SyncIt DryRun] Index loaded:", index ? "YES" : "NO");
+			if (index) {
+				const entryCount = Object.keys(index.files).length;
+				console.log("[SyncIt DryRun] Index entries:", entryCount);
+				console.log("[SyncIt DryRun] Index signature:", index.serverSignature);
+			}
+
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
 			const { localFiles, remoteFiles } = await builder.scan();
+
+			// DEBUG: Log scan results
+			console.log("[SyncIt DryRun] Local files:", localFiles.length);
+			console.log("[SyncIt DryRun] Remote files:", remoteFiles.length);
+
+			// DEBUG: Compare first 5 files
+			const remoteMap = new Map(remoteFiles.map(f => [f.path, f]));
+			for (let i = 0; i < Math.min(5, localFiles.length); i++) {
+				const local = localFiles[i];
+				const remote = remoteMap.get(local.path);
+				const entry = index?.files[local.path];
+				console.log(`[SyncIt DryRun] File ${i}: ${local.path}`);
+				console.log(`  local: mtime=${local.mtime}, size=${local.size}`);
+				console.log(`  remote: mtime=${remote?.mtime}, size=${remote?.size}, etag=${remote?.etag}`);
+				console.log(`  index: localMtime=${entry?.localMtime}, remoteMtime=${entry?.remoteMtime}, etag=${entry?.etag}`);
+				if (remote && this.indexManager) {
+					const unchanged = this.indexManager.isUnchanged(local, remote, index);
+					console.log(`  isUnchanged: ${unchanged}`);
+				}
+			}
+
 			const plan = builder.buildPlan(localFiles, remoteFiles);
 
 			this._sidebarView?.setPlan(plan);
@@ -324,7 +354,7 @@ export default class SyncItPlugin extends Plugin {
 				return;
 			}
 
-			// Simulate progress for each operation
+			// Simulate progress for each operation (no artificial delay)
 			let current = 0;
 			const total = totalOps;
 			const allOps = [
@@ -337,8 +367,6 @@ export default class SyncItPlugin extends Plugin {
 			for (const op of allOps) {
 				current++;
 				this._sidebarView?.updateProgress(current, total, op.op, op.path, 0, 0);
-				// Small delay so user can see the list populate
-				await new Promise(r => setTimeout(r, 20));
 			}
 
 			const result = {
