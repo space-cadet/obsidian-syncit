@@ -22,6 +22,10 @@ export class SyncSidebarView extends ItemView {
 	private fileLogEl: HTMLElement | null = null;
 	private cancelBtn: HTMLElement | null = null;
 	private completionSection: HTMLElement | null = null;
+	// Persistent log section (always visible)
+	private logSection: HTMLElement | null = null;
+	private logHeaderEl: HTMLElement | null = null;
+	private logListEl: HTMLElement | null = null;
 
 	// State
 	private isSyncing = false;
@@ -125,6 +129,28 @@ export class SyncSidebarView extends ItemView {
 		const spacer = container.createDiv();
 		spacer.style.flex = "1";
 
+		// Persistent sync log section (always visible)
+		this.logSection = container.createDiv("syncit-sidebar-log");
+		this.logSection.style.padding = "12px 16px";
+		this.logSection.style.borderTop = "1px solid var(--background-modifier-border)";
+		this.logSection.style.display = "flex";
+		this.logSection.style.flexDirection = "column";
+		this.logSection.style.minHeight = "200px";
+
+		this.logHeaderEl = this.logSection.createEl("div");
+		this.logHeaderEl.style.fontSize = "0.75em";
+		this.logHeaderEl.style.color = "var(--text-faint)";
+		this.logHeaderEl.style.marginBottom = "6px";
+		this.logHeaderEl.setText("Recent Activity");
+
+		this.logListEl = this.logSection.createDiv();
+		this.logListEl.style.flex = "1";
+		this.logListEl.style.overflowY = "auto";
+		this.logListEl.style.display = "flex";
+		this.logListEl.style.flexDirection = "column";
+		this.logListEl.style.gap = "3px";
+		this.logListEl.style.fontSize = "0.85em";
+
 		// Connection info
 		const infoSection = container.createDiv("syncit-sidebar-info");
 		infoSection.style.padding = "12px 16px";
@@ -142,6 +168,11 @@ export class SyncSidebarView extends ItemView {
 	setPlan(plan: SyncPlan) {
 		this.isSyncing = true;
 		this.startTime = Date.now();
+		this._clearLog();
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("Syncing…");
+			this.logHeaderEl.style.color = "var(--interactive-accent)";
+		}
 		this.totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 		this.completedOps = 0;
 		this.totalBytes = plan.uploadSize + plan.downloadSize;
@@ -210,15 +241,19 @@ export class SyncSidebarView extends ItemView {
 	finish(result: SyncResult & { message: string }) {
 		this.isSyncing = false;
 		const elapsed = Date.now() - this.startTime;
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText(`✅ Sync complete · ${formatDuration(elapsed)}`);
+			this.logHeaderEl.style.color = "var(--text-success)";
+		}
 
 		this.statusEl.setText("Ready");
 		this.lastSyncEl.setText(`${result.message} · ${formatDuration(elapsed)}`);
 
-		this._removeProgressUI();
-		this._showCompletionSummary(result, elapsed);
+		this._removeProgressUI(); // removes bar, stats, cancel — log stays
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
 		this.syncBtn.setText("Sync Now");
+		this._showCompletionSummary(result, elapsed);
 	}
 
 	setCancelled() {
@@ -226,6 +261,10 @@ export class SyncSidebarView extends ItemView {
 		this.statusEl.setText("Cancelled");
 		this.lastSyncEl.setText("Sync was cancelled");
 		this._removeProgressUI();
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("Sync cancelled");
+			this.logHeaderEl.style.color = "var(--text-warning)";
+		}
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
@@ -237,6 +276,10 @@ export class SyncSidebarView extends ItemView {
 		this.statusEl.setText("Sync failed");
 		this.lastSyncEl.setText(message);
 		this._removeProgressUI();
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("Sync failed");
+			this.logHeaderEl.style.color = "var(--text-error)";
+		}
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
@@ -345,21 +388,12 @@ export class SyncSidebarView extends ItemView {
 		this.cancelBtn.style.width = "100%";
 		this.cancelBtn.addEventListener("click", () => this.plugin.cancelSync());
 
-		// File log
+		// Operations log header (entries go to persistent logListEl)
 		const logHeader = this.progressSection.createEl("div");
 		logHeader.style.fontSize = "0.75em";
 		logHeader.style.color = "var(--text-faint)";
 		logHeader.style.marginTop = "8px";
-		logHeader.style.marginBottom = "4px";
-		logHeader.setText("Files");
-
-		this.fileLogEl = this.progressSection.createDiv();
-		this.fileLogEl.style.maxHeight = "200px";
-		this.fileLogEl.style.overflowY = "auto";
-		this.fileLogEl.style.display = "flex";
-		this.fileLogEl.style.flexDirection = "column";
-		this.fileLogEl.style.gap = "3px";
-		this.fileLogEl.style.fontSize = "0.85em";
+		logHeader.setText("Operations");
 	}
 
 	private _removeProgressUI() {
@@ -468,9 +502,9 @@ export class SyncSidebarView extends ItemView {
 	}
 
 	private _addFileLogEntry(path: string, operation: "upload" | "download" | "conflict" | "error" | "delete", meta?: { size?: number }) {
-		if (!this.fileLogEl) return;
+		if (!this.logListEl) return;
 
-		const row = this.fileLogEl.createDiv();
+		const row = this.logListEl.createDiv();
 		row.style.display = "flex";
 		row.style.alignItems = "center";
 		row.style.gap = "6px";
@@ -544,10 +578,16 @@ export class SyncSidebarView extends ItemView {
 		};
 		badge.setText(badgeLabels[operation] || "Done");
 
-		while (this.fileLogEl.children.length > 20) {
-			this.fileLogEl.firstChild?.remove();
+		while (this.logListEl.children.length > 50) {
+			this.logListEl.firstChild?.remove();
 		}
-		this.fileLogEl.scrollTop = this.fileLogEl.scrollHeight;
+		this.logListEl.scrollTop = this.logListEl.scrollHeight;
+	}
+
+	private _clearLog() {
+		if (this.logListEl) {
+			this.logListEl.empty();
+		}
 	}
 
 	async onClose() {}
