@@ -1,6 +1,7 @@
 # Tech Context — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
+*Last Updated: 2026-08-18 11:16 IST*
 
 ## Stack
 
@@ -51,7 +52,8 @@ obsidian-syncit/
 │   ├── sync/
 │   │   ├── VaultSyncEngine.ts
 │   │   ├── SyncPlan.ts
-│   │   └── SyncIndex.ts          ← T12d: local sync index
+│   │   ├── SyncIndex.ts          ← T12d: local sync index
+│   │   └── DebugLogger.ts        ← T8: debug log file writer
 │   ├── remote/
 │   │   └── WebDAVAdapter.ts
 │   ├── local/
@@ -182,3 +184,6 @@ const response = await requestUrl({
 3. **Path normalization** — WebDAV servers vary in trailing slash behavior
 4. **Mobile filesystem** — `FileSystemAdapter` vs mobile adapter differences
 5. **Large files** — Mobile memory limits; consider streaming for >10MB
+6. **`.obsidian/` folder sync** — `app.vault.getFiles()` excludes dot folders by design. Would require rewriting VaultScanner to use `app.vault.adapter.list()` (obsidian-ai pattern). Deferred.
+7. **saveSettings() index clearing** — Clearing sync index on every settings save (even trivial toggles) caused full re-uploads. Fix: only clear when server config (URL/username/password/baseDir) actually changes.
+8. **Signature normalization** — `makeServerSignature()` must trim whitespace and strip trailing slashes from URL/baseDir to prevent signature mismatches from trivial formatting differences.

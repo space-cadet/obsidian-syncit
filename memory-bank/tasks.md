@@ -1,7 +1,7 @@
 # Memory Bank — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-17 12:55 IST*
+*Last Updated: 2026-08-18 11:16 IST*
 
 ## Overview
 
@@ -11,13 +11,12 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
-| T5 | Sync History Log | 📋 Planned | P1 | — | T1 | User's #2 priority |
-| T6 | Selective Sync | 📋 Planned | P1 | — | T1 | User's #3 priority |
-| T7 | Sync Pause and Resume | 📋 Planned | P1 | — | T1 | User's #4 priority |
-| T8 | Dry Run Mode | 📋 Planned | P1 | — | T1 | User's #5 priority |
-| T9 | Atomic Writes | 📋 Planned | P1 | — | T1 | User's #6 priority |
-| T10 | Trash Mode and Snapshots | 📋 Planned (needs refinement) | P1 | — | T1 | User's #7 priority |
-| T11 | Chunked Downloads | 📋 Planned | P2 | — | T1 | User's #8 priority |
+| T5 | Sync History Log | 🔄 | P1 | — | T1 | User's #2 priority |
+| T6 | Selective Sync | 🔄 | P1 | — | T1 | User's #3 priority |
+| T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | User's #4 priority |
+| T9 | Atomic Writes | 🔄 | P1 | — | T1 | User's #6 priority |
+| T10 | Trash Mode and Snapshots | 🔄 | P1 | — | T1 | User's #7 priority |
+| T11 | Chunked Downloads | 🔄 | P2 | — | T1 | User's #8 priority |
 
 ## Completed Tasks
 
@@ -33,10 +32,11 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T12b | Streaming Uploads | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | Per-file progress tracking |
 | T12c | Directory Batching | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | MKCOL deduplication per session |
 | T12d | Local Sync Index | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T4 | Skip unchanged files via ETag index |
+| T8 | Dry Run Mode | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-18 | T1 | Preview sync plan without transferring; debug logging; 2x2 button grid |
 
 ## Status Summary
 
-- **Active**: 7 (T5–T11)
-- **Completed**: 8 (T1–T4, T12 + T12a–T12d)
+- **Active**: 6 (T5–T7, T9–T11)
+- **Completed**: 9 (T1–T4, T8, T12 + T12a–T12d)
 - **Paused**: 0
 - **Total**: 15

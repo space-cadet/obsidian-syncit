@@ -1,7 +1,8 @@
 # Multi-Pass Sync Architecture
 
 **Date**: 2026-08-17
-**Related Tasks**: T3a, T12 (all subtasks)
+**Updated**: 2026-08-18
+**Related Tasks**: T3a, T8, T12 (all subtasks)
 **Status**: ✅ Implemented
 
 ## Overview
@@ -33,6 +34,27 @@ The sync engine was restructured from a single-pass sequential model into a **th
 - Size-based progress tracking (bytes transferred, not file count)
 - Parallel execution with concurrency limit (T12b)
 - Updates sync index incrementally via `patchIndex()`
+
+## Dry Run Variant (T8)
+
+Dry run reuses Phase 1 (Scan) and Phase 2 (Compare) but **skips Phase 3 (Transfer)**:
+
+```
+┌──────────┐     ┌──────────┐
+│  Phase 1 │ ──► │  Phase 2 │
+│   Scan   │     │ Compare  │
+└──────────┘     └──────────┘
+                        │
+                        ▼
+              ┌─────────────────┐
+              │ showDryRunResult │
+              │   (preview UI)   │
+              └─────────────────┘
+```
+
+- Zero actual transfers
+- Shows 🧪 preview cards with planned operations
+- Loads sync index; if index is missing, ALL files appear as changes
 
 ## Pre-Sync Summary
 
@@ -77,6 +99,18 @@ With a local sync index (T12d), deletion detection works as follows:
 2. If a file is in the index but has a different remote ETag → it was modified remotely
 3. Files not in the index are treated as new
 
+## Lessons Learned
+
+### saveSettings() Index Wiping Bug (2026-08-18)
+
+`saveSettings()` was calling `indexManager.clear()` on **every** settings save — even trivial toggles like auto-update or concurrency slider changes. This caused:
+- Full re-uploads (~45 min) every time settings were touched
+- Dry run showing 1,710 downloads because the index was deleted before it could be loaded
+
+**Fix**: Only clear the index when server config (URL, username, password, baseDir) actually changes. Compare old vs new values before clearing.
+
+**Prevention**: Any setting change that invalidates cached state needs a narrow, explicit invalidation condition — not a blanket clear on save.
+
 ## Files Modified
 
 | File | Role in Multi-Pass |
@@ -84,8 +118,8 @@ With a local sync index (T12d), deletion detection works as follows:
 | `src/sync/VaultSyncEngine.ts` | Orchestrates 3 phases |
 | `src/sync/SyncPlan.ts` | Builds plan with byte totals |
 | `src/sync/SyncIndex.ts` | Enables unchanged-file skipping |
-| `src/ui/SyncSidebarView.ts` | Displays pre-sync summary + live progress |
-| `src/main.ts` | Wires progress callbacks |
+| `src/ui/SyncSidebarView.ts` | Displays pre-sync summary + live progress + dry run results |
+| `src/main.ts` | Wires progress callbacks, `performDryRun()` |
 
 ## Acceptance Criteria
 

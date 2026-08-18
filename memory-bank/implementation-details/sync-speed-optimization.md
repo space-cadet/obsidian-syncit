@@ -1,8 +1,9 @@
 # Sync Speed Optimization — Technical Analysis
 
 **Date**: 2026-08-17
+**Updated**: 2026-08-18
 **Related Tasks**: T12 (parent), T12a, T12b, T12c, T12d
-**Status**: Analysis complete, implementation pending
+**Status**: ✅ All subtasks implemented
 
 ## Executive Summary
 
@@ -129,7 +130,7 @@ async ensureDir(path: string): Promise<void> {
 
 ---
 
-## Issue 4: No Local Sync Index (T12d)
+## Issue 4: No Local Sync Index (T12d) — ✅ FIXED
 
 ### Problem
 Every sync re-reads and re-compares every file. There's no record of "what was already in sync."
@@ -139,39 +140,34 @@ Every sync re-reads and re-compares every file. There's no record of "what was a
 - Even if zero files changed, sync still lists all files and compares mtimes
 - For large vaults (1000+ files), this is significant overhead
 
-### Recommended Fix
-Store a local index at `sync-index.json`:
+### Fix Implemented
+- `SyncIndexManager` persists sync state to `sync-index.json`
+- `SyncIndexEntry` tracks localMtime, localSize, remoteEtag, remoteMtime, remoteSize
+- On `buildPlan()`: if file in index and local unchanged → skip unless remote ETag changed
+- After successful sync: update index incrementally via `patchIndex()`
+- Index invalidated when server config changes
 
-```typescript
-interface SyncIndexEntry {
-    localMtime: number;
-    remoteMtime: number;
-    localSize: number;
-    remoteSize: number;
-    etag?: string;
-}
-```
+### Reliability Enhancement (2026-08-18)
+- `makeServerSignature()` now normalizes URL and baseDir: trims whitespace, strips trailing slashes
+- Prevents signature mismatches from trivial formatting differences (e.g., `https://example.com/` vs `https://example.com`)
 
-On `buildPlan()`:
-- If file in index and local mtime/size unchanged → skip unless remote ETag changed
-- After successful sync → update index
-
-### Dependencies
-- T4 (ETag support) provides the most reliable remote change detection
-- Can implement with mtime fallback if T4 not yet done
+### Critical Bug Fixed (2026-08-18)
+- `saveSettings()` was clearing the index on EVERY settings save, even trivial toggles
+- Fix: only clear index when server config (URL, username, password, baseDir) actually changes
+- Without this fix, T12d appeared broken — all files re-uploaded every sync
 
 ---
 
-## Implementation Priority
+## Implementation Status
 
-| Order | Task | Rationale |
-|-------|------|-----------|
-| 1 | T12a — Fix PROPFIND depth | Correctness must come before performance |
-| 2 | T12b — Parallel sync | Biggest speed win |
-| 3 | T12c — Batch MKCOL | Easy win, low risk |
-| 4 | T12d — Local index | Requires T4 (ETags) for full benefit |
-
-T12a and T12b can be done in parallel (they touch different files). T12c is a small WebDAVAdapter change. T12d should wait for T4 or use mtime-only fallback.
+| Order | Task | Status | Commit |
+|-------|------|--------|--------|
+| 1 | T12a — Fix PROPFIND depth | ✅ Complete | — |
+| 2 | T12b — Parallel sync | ✅ Complete | — |
+| 3 | T12c — Batch MKCOL | ✅ Complete | — |
+| 4 | T12d — Local index | ✅ Complete | — |
+| 5 | Signature normalization | ✅ Complete | `aaa1d4a` |
+| 6 | saveSettings() fix | ✅ Complete | `fd784b2` |
 
 ---
 
@@ -186,12 +182,12 @@ T12a and T12b can be done in parallel (they touch different files). T12c is a sm
 
 ---
 
-## Files to Modify
+## Files Modified
 
 | File | Changes |
 |------|---------|
 | `src/remote/WebDAVAdapter.ts` | T12a (recursive listFiles), T12c (MKCOL batching) |
 | `src/sync/SyncPlan.ts` | T12b (concurrency in executePlan) |
-| `src/sync/SyncIndex.ts` | T12d (new file) |
+| `src/sync/SyncIndex.ts` | T12d (local sync index) |
 | `src/types.ts` | T12b (concurrencyLimit setting), T12d (index types) |
-| `src/settings.ts` | T12b (concurrency UI) |
+| `src/settings.ts` | T12b (concurrency UI), T12d (signature normalization, saveSettings fix) |

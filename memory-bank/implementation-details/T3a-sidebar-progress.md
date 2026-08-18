@@ -1,5 +1,7 @@
 # T3a Implementation: Sidebar-Native Progress Display
 
+*Last Updated: 2026-08-18 11:16 IST*
+
 ## Overview
 
 Move sync progress from modal to sidebar. The sidebar becomes the primary (and only) progress surface.
@@ -31,7 +33,13 @@ IDLE ──[Sync Now]──► SYNCING ──[Cancel]──► CANCELLED
    └─────────────── DONE / ERROR
 ```
 
-## UI Elements Added to Sidebar
+## UI Elements in Sidebar
+
+### Action Buttons (2x2 Grid)
+- **Sync Now** — triggers full sync
+- **Dry Run** — T8: preview sync without transferring (🧪)
+- **Settings** — opens plugin settings
+- **Rebuild Index** — rebuilds sync index from scratch
 
 ### Progress Section (shown during sync)
 - Progress bar (`<div>` with fill width)
@@ -39,11 +47,16 @@ IDLE ──[Sync Now]──► SYNCING ──[Cancel]──► CANCELLED
 - Stat counters (uploaded, downloaded, skipped, conflicts)
 - Cancel button
 
-### File Log Section (shown during sync)
-- Collapsible or auto-showing
+### File Log Section (always visible)
+- `minHeight: 200px` — no longer grows from nothing
+- Survives after sync completes
+- Dynamic header: Recent Activity → Syncing... → ✅ Sync complete
 - Last 20 operations with icons
 - Auto-scrolls to latest
-- Cleared on next sync
+
+### Scan Spinner
+- `setScanning()` shows "⏳ Scanning..." during Phase 1 (Scan)
+- Used for both Sync and Dry Run
 
 ## Methods Added to SyncSidebarView
 
@@ -53,6 +66,8 @@ updateProgress(current: number, total: number, operation: string, path: string):
 markFileDone(path: string, operation: string, meta?: { size?: number }): void
 finish(result: SyncResult & { message: string }): void
 clearProgress(): void
+setScanning(isScanning: boolean): void        // Scan spinner
+showDryRunResult(plan: SyncPlan): void        // T8: dry run preview
 ```
 
 ## CSS Classes
@@ -60,16 +75,19 @@ clearProgress(): void
 ```css
 .syncit-sidebar-progress { height: 4px; background: var(--background-modifier-border); }
 .syncit-sidebar-progress-fill { height: 100%; background: var(--interactive-accent); }
-.syncit-sidebar-log { max-height: 200px; overflow-y: auto; }
+.syncit-sidebar-log { min-height: 200px; max-height: 200px; overflow-y: auto; }
 .syncit-sidebar-log-item { display: flex; gap: 6px; padding: 3px 0; }
 ```
 
-## Migration from Modal
+## Changes from Original Design
 
-1. Copy stat card logic from `SyncProgressModal` to sidebar
-2. Copy file row rendering from modal to sidebar log
-3. Replace modal open/close with sidebar method calls
-4. Delete `SyncProgressModal.ts` (or keep for reference)
+| Aspect | Original | Current (2026-08-18) |
+|--------|----------|---------------------|
+| Log visibility | Shown during sync, cleared on next sync | Always visible, 200px min-height |
+| Log header | Static "Recent Activity" | Dynamic: Recent Activity → Syncing... → ✅ Sync complete |
+| Buttons | Vertical stack | 2x2 compact grid |
+| Scan phase | No visual indicator | "⏳ Scanning..." spinner |
+| Dry run | Not present | Dedicated button + preview cards |
 
 ## Testing
 
@@ -78,3 +96,4 @@ clearProgress(): void
 3. Reopen sidebar → picks up current state
 4. Cancel → sidebar shows "Cancelled", button reverts
 5. Finish → sidebar shows "Ready" with last sync time
+6. Dry run → shows 🧪 preview cards, no actual transfers

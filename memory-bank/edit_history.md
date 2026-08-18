@@ -1,11 +1,57 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-17 20:08 IST*
+*Last Updated: 2026-08-18 11:16 IST*
 
 ---
 
+## 2026-08-18
+
+#### 11:16 IST - T8: Build metadata injection in CI workflows
+- Modified `.github/workflows/release.yml` - Added `commitHash` and `buildDate` injection into `manifest.json` during stable release build
+- Modified `.github/workflows/pre-release.yml` - Added `commitHash` and `buildDate` injection into `manifest.json` during dev build
+
+#### 11:16 IST - T3a: Persistent sync log in sidebar
+- Modified `src/ui/SyncSidebarView.ts` - Moved file log to always-visible section with `minHeight: 200px`
+- Modified `src/ui/SyncSidebarView.ts` - Log header updates dynamically: Recent Activity → Syncing... → Sync complete
+
+#### 11:16 IST - T8: Dry run mode implementation
+- Modified `src/main.ts` - Added `performDryRun()` method: scans, builds plan, shows preview, zero transfers
+- Modified `src/main.ts` - Added "Dry Run" command to Command Palette
+- Modified `src/ui/SyncSidebarView.ts` - Added "Dry Run" button to 2x2 action grid
+- Modified `src/ui/SyncSidebarView.ts` - Added `showDryRunResult()` displaying 🧪 preview cards with plan summary
+
+#### 11:16 IST - T8: Debug logging to file
+- Created `src/sync/DebugLogger.ts` - Writes debug output to `.obsidian/plugins/obsidian-syncit/debug.log`
+- Modified `src/main.ts` - Integrated DebugLogger into dry run flow
+- Modified `src/ui/SyncSidebarView.ts` - Removed artificial 20ms per-file delay, now instant after scan
+
+#### 11:16 IST - T3a: Compact button layout and scan spinner
+- Modified `src/ui/SyncSidebarView.ts` - Changed action buttons to 2x2 grid layout (Sync Now, Dry Run, Settings, Rebuild Index)
+- Modified `src/ui/SyncSidebarView.ts` - Added `setScanning()` showing "⏳ Scanning..." during scan phase
+- Modified `src/settings.ts` - Signature normalization: `makeServerSignature()` trims whitespace, strips trailing slashes from URL and baseDir
+
+#### 11:16 IST - T12d: Fix saveSettings() wiping sync index
+- Modified `src/settings.ts` - `saveSettings()` now only calls `indexManager.clear()` when server config (URL, username, password, baseDir) actually changes
+- Previously: index was cleared on EVERY settings save, causing full re-uploads (~45 min) even for trivial toggles
+- Root cause of "1710 downloads in dry run" — index deleted before dry run could load it
+
 ## 2026-08-17
+
+#### 21:25 IST - WebDAV href path parsing fix
+- Nextcloud returns absolute hrefs like `/remote.php/dav/files/deepak/obsidian-syncit/file.md`
+- `hrefToPath()` was only checking for `/obsidian-syncit/` prefix → all files rejected
+- Fixed: `getFullPathPrefix()` extracts server path from `baseUrl` + `baseDir`
+- Result: Remote scan now correctly returns all files
+- Commit: `39f8c8c`
+
+#### 21:14 IST - Updater fix: debug logging, commit hash comparison, error surfacing
+- Added `DebugLogger` class → writes to `debug.log` in plugin dir
+- `checkForUpdate()` now logs all steps (releases fetched, commit comparison, version comparison)
+- Pass `currentCommitHash` from manifest to enable commit-hash dev channel updates
+- Surface actual error messages in Notice when update check fails
+- Workflow: Inject `commitHash` into `manifest.json` during pre-release build
+- Commit: `1c94dc8`
 
 #### 19:25 IST - T4+T12d: ETag support and local sync index
 - WebDAVAdapter: capture ETags from PROPFIND `<d:getetag/>`
