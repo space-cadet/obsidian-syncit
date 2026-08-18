@@ -1,7 +1,7 @@
 # Session Cache
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 12:04 IST*
+*Last Updated: 2026-08-18 13:30 IST*
 
 ## Current Session
 **Started**: 2026-08-18 11:45 IST
@@ -57,6 +57,14 @@
 ## System Status
 - **Memory Bank**: ✅ T13a/T13b implementation recorded
 - **Project**: T13a/T13b implemented; T13c shared manifest and tombstones remain
+
+## Follow-up Completed (2026-08-18 13:30 IST)
+
+- T2 branch-aware updater fix completed and pushed as `2837d20`.
+- Feature-branch CI now writes `buildBranch` into `manifest.json`.
+- The updater uses that branch for branch-specific dev releases and commit checks; slash-containing branch names are encoded safely.
+- Verification: production build passed, all tests passed, and `git diff --check` passed.
+- Next session: continue with T13c shared manifest and deletion tombstones.
 
 ## T9 Atomic Write Slice
 

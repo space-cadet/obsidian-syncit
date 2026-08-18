@@ -1,6 +1,6 @@
 # Active Context
 
-*Last Updated: 2026-08-18 12:55 IST*
+*Last Updated: 2026-08-18 13:30 IST*
 
 ## Current Tasks
 - T13: **Safe Cross-Device Reconciliation and Shared Sync State** — P0 data-safety work (🔄 T13a/T13b implemented; T13c next)
@@ -29,6 +29,7 @@
 - T13a blocks ambiguous first-sync and possible-deletion plans before transfer. T13b now adds explicit per-file decisions, first-review direction shortcuts, safe local/remote deletion actions, keep-both handling, and apply-time revalidation. T13c must add the shared manifest and tombstones.
 - T9 now writes local files through same-directory temporary paths and adapter rename, and remote files through temporary WebDAV PUT plus MOVE. Failed writes clean up temporary files; tests cover success, write failure, rename/MOVE failure, and local startup cleanup.
 - T13b now provides the reconciliation review/apply panel, explicit use-local/use-remote/keep-both/cancel choices, first-review policy shortcuts, safe local deletion, dry-run “Would ...” labels, and larger scroll areas. Build passed; 15 tests passed. T13c shared manifest/tombstones remain.
+- T2 branch-aware updater follow-up is complete: feature-branch CI now records `buildBranch`, `main.ts` passes it to `PluginUpdater`, and branch commit requests safely encode names containing `/`. Commit `2837d20` was pushed to `agent/t13-t9-safe-sync`.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

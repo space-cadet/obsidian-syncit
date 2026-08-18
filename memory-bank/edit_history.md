@@ -1,7 +1,17 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 12:55 IST*
+*Last Updated: 2026-08-18 13:30 IST*
+
+---
+
+#### 13:30:05 IST - T2: Record branch-aware updater fix
+- Modified `.github/workflows/feature-branch-build.yml` - Injected `commitHash`, `buildDate`, and `buildBranch` into feature-branch release manifests
+- Modified `.github/workflows/pre-release.yml` - Recorded the main branch in pre-release metadata
+- Modified `src/main.ts` - Passed manifest `buildBranch` to the updater with a `main` fallback
+- Modified `src/updater/PluginUpdater.ts` - Encoded branch names in GitHub commit requests
+- Verification: `pnpm build`, `pnpm test`, and `git diff --check` passed
+- Commit `2837d20` pushed to `agent/t13-t9-safe-sync`
 
 ---
 
