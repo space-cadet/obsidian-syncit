@@ -11,7 +11,7 @@ import { WebDAVAdapter, SyncCancelledError } from "./remote/WebDAVAdapter";
 import { VaultScanner } from "./local/VaultScanner";
 import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
-import { PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
+import { AvailableBuildsModal, PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
 
 export default class SyncItPlugin extends Plugin {
@@ -703,5 +703,14 @@ export default class SyncItPlugin extends Plugin {
 				new Notice(`SyncIt: Update check failed — ${msg}`, 8000);
 			}
 		}
+	}
+
+	async showAvailableBuilds() {
+		if (!this._updater) return;
+		const modal = new AvailableBuildsModal(this.app, this._updater, async (build) => {
+			const tempDir = await this._updater!.downloadUpdate(build.release);
+			await this._updater!.installUpdate(tempDir);
+		});
+		modal.open();
 	}
 }

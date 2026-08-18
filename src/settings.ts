@@ -238,6 +238,9 @@ export class SyncItSettingTab extends PluginSettingTab {
 			const shortHash = manifest.commitHash.slice(0, 7);
 			versionDesc += ` · ${shortHash}`;
 		}
+		if (manifest.buildBranch) {
+			versionDesc += ` · branch: ${manifest.buildBranch}`;
+		}
 		if (manifest.buildDate) {
 			const buildDate = new Date(manifest.buildDate).toLocaleDateString();
 			versionDesc += ` · ${buildDate}`;
@@ -263,6 +266,13 @@ export class SyncItSettingTab extends PluginSettingTab {
 			const date = new Date(this.plugin.settings.lastUpdateCheck).toLocaleString();
 			lastCheck.textContent = `Last checked: ${date}`;
 		}
+
+		new Setting(containerEl)
+			.setName("Available branch builds")
+			.setDesc("Browse and install published development builds from any branch.")
+			.addButton((button) => button
+				.setButtonText("Browse builds")
+				.onClick(() => this.plugin.showAvailableBuilds()));
 
 		// Sync button
 		containerEl.createEl("h3", { text: "Actions" });
