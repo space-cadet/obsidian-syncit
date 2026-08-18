@@ -3,7 +3,7 @@
 *Last Updated: 2026-08-19 00:58 IST*
 
 ## Current Tasks
-- **T14: Sync Direction Dropdown + Policy Settings UI** - New P1 task, implementing now (🔄 In Progress)
+- **T14: Sync Direction Dropdown + Policy Settings UI** - ✅ Implemented; 17 tests and production build pass
 - T13: **Safe Cross-Device Reconciliation** - ✅ MERGED. Reconciliation panel code present but will be temporarily disabled in favor of sync direction dropdown + policy settings. T13c (shared manifest/tombstones) deferred.
 - T5: **Sync History Log** - User's #2 priority (🔄 Next after T14)
 - T6: Selective Sync - User's #3 priority (🔄)
@@ -32,6 +32,7 @@
 - T4 ETag capture is complete, but conflict UI deferred until after sync directions are implemented.
 - T9 atomic writes implemented for text files; binary-safe verification and remote orphan cleanup remain.
 - T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
+- T14 adds persisted default direction and reconciliation policy settings, plus a per-sync sidebar direction selector. Upload-only/download-only are enforced in planning; ambiguous two-way cases still use the T13 review panel for safety.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

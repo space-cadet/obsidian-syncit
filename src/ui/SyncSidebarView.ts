@@ -52,10 +52,12 @@ export class SyncSidebarView extends ItemView {
 	private deleted = 0;
 	private conflicts = 0;
 	private currentPlan: SyncPlan | null = null;
+	private selectedMode: ReconciliationMode;
 
 	constructor(leaf: WorkspaceLeaf, plugin: SyncItPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.selectedMode = plugin.settings.syncDirection;
 	}
 
 	getViewType(): string { return SYNC_SIDEBAR_VIEW_TYPE; }
@@ -116,9 +118,23 @@ export class SyncSidebarView extends ItemView {
 		actionsSection.style.gridTemplateColumns = "1fr 1fr";
 		actionsSection.style.gap = "8px";
 
-		this.syncBtn = actionsSection.createEl("button", { text: "Sync Now" });
+		const syncControl = actionsSection.createDiv();
+		syncControl.style.display = "flex";
+		syncControl.style.gap = "4px";
+		this.syncBtn = syncControl.createEl("button", { text: this.modeLabel(this.selectedMode) });
+		this.syncBtn.style.flex = "1";
 		this.syncBtn.addClass("mod-cta");
-		this.syncBtn.addEventListener("click", () => this.plugin.performSync());
+		this.syncBtn.addEventListener("click", () => this.plugin.performSync(this.selectedMode));
+		const modeSelect = syncControl.createEl("select");
+		modeSelect.setAttribute("aria-label", "Sync direction");
+		for (const [value, label] of [["two-way", "Two-way"], ["upload-only", "Upload only"], ["download-only", "Download only"]] as const) {
+			modeSelect.createEl("option", { value, text: label });
+		}
+		modeSelect.value = this.selectedMode;
+		modeSelect.addEventListener("change", () => {
+			this.selectedMode = modeSelect.value as ReconciliationMode;
+			this.syncBtn.setText(this.modeLabel(this.selectedMode));
+		});
 
 		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
 		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
@@ -172,6 +188,15 @@ export class SyncSidebarView extends ItemView {
 
 		const url = this.plugin.settings.webdavUrl || "Not configured";
 		infoSection.createEl("div", { text: `Server: ${url}` });
+	}
+
+	updateSyncMode() {
+		this.selectedMode = this.plugin.settings.syncDirection;
+		this.syncBtn?.setText(this.modeLabel(this.selectedMode));
+	}
+
+	private modeLabel(mode: ReconciliationMode): string {
+		return mode === "upload-only" ? "↑ Upload to server" : mode === "download-only" ? "↓ Download from server" : "↕ Two-way sync";
 	}
 
 	// ─── Progress API ───
@@ -396,7 +421,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI(); // removes bar, stats, cancel — log stays
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText(this.modeLabel(this.selectedMode));
 		this._showCompletionSummary(result, elapsed);
 	}
 
@@ -415,7 +440,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText(this.modeLabel(this.selectedMode));
 
 		// Show summary cards
 		const container = this.containerEl.children[1] as HTMLElement;
@@ -478,7 +503,7 @@ export class SyncSidebarView extends ItemView {
 		note.style.fontSize = "0.8em";
 		note.style.color = "var(--text-faint)";
 		note.style.fontStyle = "italic";
-		note.setText("No changes were made. Click 'Sync Now' to apply.");
+		note.setText("No changes were made. Choose a direction and click the sync button to apply.");
 	}
 
 	setCancelled() {
@@ -494,7 +519,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText(this.modeLabel(this.selectedMode));
 	}
 
 	setError(message: string) {
@@ -510,7 +535,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText("Sync Now");
+		this.syncBtn.setText(this.modeLabel(this.selectedMode));
 	}
 
 	// ─── Idle State ───
@@ -525,7 +550,7 @@ export class SyncSidebarView extends ItemView {
 	setSyncing(syncing: boolean) {
 		if (!syncing && !this.isSyncing) {
 			(this.syncBtn as HTMLButtonElement).disabled = false;
-			this.syncBtn.setText("Sync Now");
+			this.syncBtn.setText(this.modeLabel(this.selectedMode));
 		}
 	}
 

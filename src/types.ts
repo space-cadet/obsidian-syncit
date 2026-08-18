@@ -15,6 +15,8 @@ export interface SyncItSettings {
 	autoUpdate: boolean;
 	lastUpdateCheck: number;
 	concurrencyLimit: number;
+	syncDirection: ReconciliationMode;
+	reconciliationPolicy: "follow-direction" | "prompt";
 }
 
 export const DEFAULT_SETTINGS: SyncItSettings = {
@@ -35,6 +37,8 @@ export const DEFAULT_SETTINGS: SyncItSettings = {
 	autoUpdate: false,
 	lastUpdateCheck: 0,
 	concurrencyLimit: 3,
+	syncDirection: "two-way",
+	reconciliationPolicy: "follow-direction",
 };
 
 export interface FileEntity {

@@ -38,7 +38,7 @@ export class SyncPlanBuilder {
 
 	// ─── Phase 2: Compare & Build Plan ───
 
-	buildPlan(localFiles: FileEntity[], remoteFiles: FileEntity[]): SyncPlan {
+	buildPlan(localFiles: FileEntity[], remoteFiles: FileEntity[], mode: ReconciliationMode = "two-way"): SyncPlan {
 		const localMap = new Map(localFiles.map(f => [f.path, f]));
 		const remoteMap = new Map(remoteFiles.map(f => [f.path, f]));
 
@@ -59,6 +59,7 @@ export class SyncPlanBuilder {
 		for (const local of localFiles) {
 			const remote = remoteMap.get(local.path);
 			if (!remote) {
+				if (mode === "download-only") continue;
 				if (!this.index) {
 					plan.reconciliation.push({
 						path: local.path,
@@ -92,10 +93,10 @@ export class SyncPlanBuilder {
 					continue;
 				}
 				// File changed on one or both sides
-				if (local.mtime > remote.mtime) {
+				if (mode === "upload-only" || (mode === "two-way" && local.mtime > remote.mtime)) {
 					plan.uploads.push(local);
 					plan.uploadSize += local.size;
-				} else if (remote.mtime > local.mtime) {
+				} else if (mode === "download-only" || (mode === "two-way" && remote.mtime > local.mtime)) {
 					plan.downloads.push(remote);
 					plan.downloadSize += remote.size;
 				} else {
@@ -112,6 +113,7 @@ export class SyncPlanBuilder {
 		for (const remote of remoteFiles) {
 			const local = localMap.get(remote.path);
 			if (!local) {
+				if (mode === "upload-only") continue;
 				if (!this.index) {
 					plan.reconciliation.push({
 						path: remote.path,

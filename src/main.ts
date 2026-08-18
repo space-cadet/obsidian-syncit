@@ -175,6 +175,10 @@ export default class SyncItPlugin extends Plugin {
 		this.lastSavedServerConfig = currentConfig;
 	}
 
+	refreshSidebarMode() {
+		this._sidebarView?.updateSyncMode();
+	}
+
 	private getServerConfigSnapshot() {
 		return {
 			webdavUrl: this.settings.webdavUrl,
@@ -217,7 +221,7 @@ export default class SyncItPlugin extends Plugin {
 			.join("|");
 	}
 
-	async performSync() {
+	async performSync(mode: ReconciliationMode = this.settings.syncDirection) {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
 			return;
@@ -264,8 +268,13 @@ export default class SyncItPlugin extends Plugin {
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// Phase 2: Build plan
-			let plan = builder.buildPlan(localFiles, remoteFiles);
+			let plan = builder.buildPlan(localFiles, remoteFiles, mode);
 
+			if (plan.requiresReconciliation) {
+				if (this.settings.reconciliationPolicy === "follow-direction") {
+					plan = builder.applyReconciliationDecisions(plan, {}, mode);
+				}
+			}
 			if (plan.requiresReconciliation) {
 				const pending = this.pendingReconciliation;
 				if (!pending || pending.key !== this.reconciliationKey(plan)) {
@@ -444,7 +453,7 @@ export default class SyncItPlugin extends Plugin {
 			// DEBUG: Log scan results
 			await this._logDebug("INFO", `DryRun local=${localFiles.length} remote=${remoteFiles.length}`);
 
-			const plan = builder.buildPlan(localFiles, remoteFiles);
+			const plan = builder.buildPlan(localFiles, remoteFiles, this.settings.syncDirection);
 
 			// DEBUG: Log plan summary
 			await this._logDebug("INFO", `DryRun plan: uploads=${plan.uploads.length} downloads=${plan.downloads.length} deletes=${plan.remoteDeletes.length} conflicts=${plan.conflicts.length} unchanged=${plan.unchanged}`);

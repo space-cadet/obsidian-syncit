@@ -11,7 +11,6 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
-| T14 | Sync Direction Dropdown + Policy Settings UI | 🔄 | P1 | 2026-08-19 | T13 | [Details](tasks/T14.md) |
 | T5 | Sync History Log | 🔄 | P1 | — | T1, T13 | [Details](tasks/T5.md) |
 | T6 | Selective Sync | 🔄 | P1 | — | T1, T13 | [Details](tasks/T6.md) |
 | T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | [Details](tasks/T7.md) |
@@ -35,10 +34,11 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T12c | Directory Batching | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T12c.md) |
 | T12d | Local Sync Index | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T4 | [Details](tasks/T12d.md) |
 | T13 | Safe Cross-Device Reconciliation | ✅ COMPLETE | P0 | 2026-08-18 | 2026-08-19 | T4, T5, T8, T9, T10, T12d | [Details](tasks/T13.md) |
+| T14 | Sync Direction Dropdown + Policy Settings UI | ✅ COMPLETE | P1 | 2026-08-19 | 2026-08-19 | T13 | [Details](tasks/T14.md) |
 
 ## Status Summary
 
-- **Active**: 6 (T5–T7, T10–T11, T14)
-- **Completed**: 14 (T1–T4, T8–T9, T12 + T12a–T12d, T13)
+- **Active**: 5 (T5–T7, T10–T11)
+- **Completed**: 15 (T1–T4, T8–T9, T12 + T12a–T12d, T13–T14)
 - **Paused**: 0
 - **Total**: 20
