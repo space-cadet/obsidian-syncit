@@ -387,12 +387,12 @@ export class SyncItSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Open log viewer")
-			.setDesc("View sync history in the sidebar")
+			.setName("Open sync sidebar")
+			.setDesc("View sync progress, history, and logs in the sidebar")
 			.addButton((button) =>
 				button
-					.setButtonText("Open Log Viewer")
-					.onClick(() => this.plugin.openLogViewer())
+					.setButtonText("Open Sidebar")
+					.onClick(() => this.plugin.openSidebarView())
 			);
 	}
 

@@ -14,7 +14,6 @@ import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
 import { AvailableBuildsModal, PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
 import { SyncLogger } from "./logging/SyncLogger";
-import { LogViewerView, LOG_VIEWER_VIEW_TYPE } from "./ui/LogViewerView";
 
 export default class SyncItPlugin extends Plugin {
 	settings: SyncItSettings = DEFAULT_SETTINGS;
@@ -118,22 +117,11 @@ export default class SyncItPlugin extends Plugin {
 			callback: () => this.rebuildIndex(),
 		});
 
-		// Command: Open log viewer
-		this.addCommand({
-			id: "syncit-open-log-viewer",
-			name: "Open sync log viewer",
-			callback: () => this.openLogViewer(),
-		});
 
 		// Register sidebar view
 		this.registerView(SYNC_SIDEBAR_VIEW_TYPE, (leaf) => {
 			this._sidebarView = new SyncSidebarView(leaf, this);
 			return this._sidebarView;
-		});
-
-		// Register log viewer view
-		this.registerView(LOG_VIEWER_VIEW_TYPE, (leaf) => {
-			return new LogViewerView(leaf, this);
 		});
 
 		// Updater
@@ -702,21 +690,6 @@ export default class SyncItPlugin extends Plugin {
 		}
 	}
 
-	async openLogViewer() {
-		const { workspace } = this.app;
-		const leaves = workspace.getLeavesOfType(LOG_VIEWER_VIEW_TYPE);
-
-		if (leaves.length > 0) {
-			workspace.revealLeaf(leaves[0]);
-			return;
-		}
-
-		const leaf = workspace.getRightLeaf(false);
-		if (leaf) {
-			await leaf.setViewState({ type: LOG_VIEWER_VIEW_TYPE, active: true });
-			workspace.revealLeaf(leaf);
-		}
-	}
 
 	private async restoreSidebarView() {
 		const { workspace } = this.app;
