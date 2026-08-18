@@ -110,6 +110,10 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.style.width = "100%";
 		this.syncBtn.addEventListener("click", () => this.plugin.performSync());
 
+		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
+		dryRunBtn.style.width = "100%";
+		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
+
 		this.settingsBtn = actionsSection.createEl("button", { text: "Settings" });
 		this.settingsBtn.style.width = "100%";
 		this.settingsBtn.addEventListener("click", () => {
@@ -254,6 +258,86 @@ export class SyncSidebarView extends ItemView {
 		(this.syncBtn as HTMLButtonElement).disabled = false;
 		this.syncBtn.setText("Sync Now");
 		this._showCompletionSummary(result, elapsed);
+	}
+
+	/** Show dry run result — no transfers happened. */
+	showDryRunResult(result: SyncResult & { message: string }) {
+		this.isSyncing = false;
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("🧪 Dry run complete — no changes made");
+			this.logHeaderEl.style.color = "var(--text-accent)";
+		}
+
+		this.statusEl.setText("Ready");
+		this.lastSyncEl.setText(result.message);
+
+		this._removeProgressUI();
+		this.syncBtn.style.display = "block";
+		(this.syncBtn as HTMLButtonElement).disabled = false;
+		this.syncBtn.setText("Sync Now");
+
+		// Show summary cards
+		const container = this.containerEl.children[1] as HTMLElement;
+		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		if (!actionsSection) return;
+
+		this.completionSection = container.createDiv("syncit-sidebar-completion");
+		this.completionSection.style.padding = "0 16px 12px";
+		container.insertBefore(this.completionSection, actionsSection);
+
+		const title = this.completionSection.createEl("div");
+		title.style.textAlign = "center";
+		title.style.marginBottom = "10px";
+		title.style.fontSize = "1em";
+		title.style.fontWeight = "600";
+		title.style.color = "var(--text-accent)";
+		title.setText("🧪 Dry Run Result");
+
+		const cards: Array<{ count: number; label: string; sub: string; icon: string; color: string }> = [
+			{ count: result.uploaded, label: "would upload", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
+			{ count: result.downloaded, label: "would download", sub: formatBytes(result.downloadedBytes), icon: "🔄", color: "var(--color-blue)" },
+			{ count: result.deleted, label: "would delete", sub: "from remote", icon: "🗑", color: "var(--text-error)" },
+			{ count: result.conflicts, label: "conflicts", sub: "need review", icon: "⚠️", color: "var(--color-orange)" },
+			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
+		];
+
+		for (const card of cards) {
+			if (card.count === 0) continue;
+			const row = this.completionSection.createDiv();
+			row.style.display = "flex";
+			row.style.alignItems = "center";
+			row.style.gap = "10px";
+			row.style.padding = "8px 12px";
+			row.style.marginBottom = "4px";
+			row.style.background = "var(--background-primary-alt)";
+			row.style.borderRadius = "6px";
+
+			const iconEl = row.createEl("span");
+			iconEl.setText(card.icon);
+			iconEl.style.fontSize = "1.2em";
+
+			const info = row.createDiv();
+			info.style.flex = "1";
+
+			const countEl = info.createEl("div");
+			countEl.style.fontSize = "1.2em";
+			countEl.style.fontWeight = "700";
+			countEl.style.color = card.color;
+			countEl.setText(String(card.count));
+
+			const labelEl = info.createEl("div");
+			labelEl.style.fontSize = "0.8em";
+			labelEl.style.color = "var(--text-muted)";
+			labelEl.setText(`${card.label} · ${card.sub}`);
+		}
+
+		const note = this.completionSection.createEl("div");
+		note.style.textAlign = "center";
+		note.style.marginTop = "8px";
+		note.style.fontSize = "0.8em";
+		note.style.color = "var(--text-faint)";
+		note.style.fontStyle = "italic";
+		note.setText("No changes were made. Click 'Sync Now' to apply.");
 	}
 
 	setCancelled() {

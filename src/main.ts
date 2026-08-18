@@ -56,6 +56,13 @@ export default class SyncItPlugin extends Plugin {
 			callback: () => this.openSidebarView(),
 		});
 
+		// Command: Dry Run
+		this.addCommand({
+			id: "syncit-dry-run",
+			name: "Dry run — preview what would sync",
+			callback: () => this.performDryRun(),
+		});
+
 		// Command: Rebuild Index (no transfers — just scan and save)
 		this.addCommand({
 			id: "syncit-rebuild-index",
@@ -246,6 +253,115 @@ export default class SyncItPlugin extends Plugin {
 			this._sidebarView?.setError(errorMsg);
 			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");
+		} finally {
+			this.isSyncing = false;
+			this._sidebarView?.setSyncing(false);
+			if (this.adapter) {
+				await this.adapter.disconnect();
+			}
+		}
+	}
+
+	/** Dry run: scan and build plan, but do not transfer anything. */
+	async performDryRun() {
+		if (this.isSyncing) {
+			new Notice("SyncIt: Sync already in progress");
+			return;
+		}
+
+		if (!this.settings.webdavUrl) {
+			new Notice("SyncIt: Please configure WebDAV settings first");
+			return;
+		}
+
+		this.isSyncing = true;
+		this.updateStatusBar("Dry run...");
+		this._sidebarView?.setSyncing(true);
+		this.openSidebarView();
+		new Notice("SyncIt: Dry run started — previewing changes", 3000);
+
+		try {
+			if (!this.adapter || !this.scanner) {
+				this.adapter = new WebDAVAdapter();
+				this.scanner = new VaultScanner(this.app, this.settings);
+			}
+			await this.adapter.initialize({
+				url: this.settings.webdavUrl,
+				username: this.settings.webdavUsername,
+				password: this.settings.webdavPassword,
+				baseDir: this.settings.remoteBaseDir,
+			});
+
+			const serverSignature = SyncIndexManager.makeServerSignature({
+				url: this.settings.webdavUrl,
+				username: this.settings.webdavUsername,
+				baseDir: this.settings.remoteBaseDir,
+			});
+			const index = await this.indexManager?.load(serverSignature) ?? null;
+
+			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
+			const { localFiles, remoteFiles } = await builder.scan();
+			const plan = builder.buildPlan(localFiles, remoteFiles);
+
+			this._sidebarView?.setPlan(plan);
+
+			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
+
+			if (totalOps === 0) {
+				this._sidebarView?.finish({
+					uploaded: 0,
+					downloaded: 0,
+					deleted: 0,
+					conflicts: 0,
+					skipped: plan.unchanged,
+					errors: [],
+					uploadedBytes: 0,
+					downloadedBytes: 0,
+					message: "Already up to date",
+				});
+				new Notice("SyncIt: Already up to date");
+				this.updateStatusBar("Up to date");
+				return;
+			}
+
+			// Simulate progress for each operation
+			let current = 0;
+			const total = totalOps;
+			const allOps = [
+				...plan.uploads.map(f => ({ op: "uploading (dry-run)", path: f.path, size: f.size })),
+				...plan.downloads.map(f => ({ op: "downloading (dry-run)", path: f.path, size: f.size })),
+				...plan.conflicts.map(c => ({ op: "conflict (dry-run)", path: c.local.path, size: Math.max(c.local.size, c.remote.size) })),
+				...plan.remoteDeletes.map(f => ({ op: "deleting (dry-run)", path: f.path, size: 0 })),
+			];
+
+			for (const op of allOps) {
+				current++;
+				this._sidebarView?.updateProgress(current, total, op.op, op.path, 0, 0);
+				// Small delay so user can see the list populate
+				await new Promise(r => setTimeout(r, 20));
+			}
+
+			const result = {
+				uploaded: plan.uploads.length,
+				downloaded: plan.downloads.length,
+				deleted: plan.remoteDeletes.length,
+				conflicts: plan.conflicts.length,
+				skipped: plan.unchanged,
+				errors: [],
+				uploadedBytes: plan.uploadSize,
+				downloadedBytes: plan.downloadSize,
+				message: `${plan.uploads.length}↑ ${plan.downloads.length}↓ ${plan.remoteDeletes.length}🗑 ${plan.conflicts.length}⚠️`,
+			};
+
+			this._sidebarView?.showDryRunResult(result);
+			new Notice(`SyncIt: Dry run complete — ${result.message}`);
+			this.updateStatusBar("Dry run complete");
+		} catch (error) {
+			console.error("SyncIt dry run failed:", error);
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			this._sidebarView?.setError(errorMsg);
+			new Notice(`SyncIt: Dry run failed — ${errorMsg}`, 10000);
+			this.updateStatusBar("Dry run failed");
 		} finally {
 			this.isSyncing = false;
 			this._sidebarView?.setSyncing(false);
