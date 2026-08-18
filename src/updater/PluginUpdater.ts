@@ -18,6 +18,8 @@ export interface AvailableBuild {
 	release: ReleaseInfo;
 	branch: string;
 	commitHash?: string;
+	/** Actual git commit timestamp (author date), not release published_at */
+	committedAt?: string;
 }
 
 export interface CommitInfo {
@@ -294,30 +296,30 @@ export class PluginUpdater {
 			`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`,
 		)) as ReleaseInfo[];
 
-		// Filter pre-releases with latest-dev-* tags
 		const builds: AvailableBuild[] = [];
 		for (const release of releases.filter(
 			(r) => r.prerelease && r.tag_name.startsWith("latest-dev"),
 		)) {
 			let commitHash = release.body?.match(/\*\*Commit:\*\*\s*`([^`]+)`/)?.[1];
+			let committedAt: string | undefined;
 
-			// Fallback: fetch commit from GitHub API using the tag
-			if (!commitHash) {
-				try {
-					const branch = branchFromRelease(release);
-					const commitInfo = await fetchLatestCommit(branch);
-					if (commitInfo) {
-						commitHash = commitInfo.sha;
-					}
-				} catch {
-					// Ignore fallback errors
+			// Fetch commit info for accurate timestamp
+			const branch = branchFromRelease(release);
+			try {
+				const commitInfo = await fetchLatestCommit(branch);
+				if (commitInfo) {
+					commitHash = commitInfo.sha;
+					committedAt = commitInfo.committedAt;
 				}
+			} catch {
+				// Fallback: try to parse from release body if present
 			}
 
 			builds.push({
 				release,
-				branch: branchFromRelease(release),
+				branch,
 				commitHash,
+				committedAt,
 			});
 		}
 		return builds;
@@ -511,9 +513,12 @@ export class AvailableBuildsModal extends Modal {
 				return;
 			}
 			for (const build of this.builds) {
+				const timestamp = build.committedAt
+					? new Date(build.committedAt).toLocaleString()
+					: new Date(build.release.published_at).toLocaleString();
 				const setting = new Setting(contentEl)
 					.setName(build.branch)
-					.setDesc(`${build.release.name} · ${build.commitHash?.slice(0, 7) ?? "commit unavailable"} · ${new Date(build.release.published_at).toLocaleString()}`)
+					.setDesc(`${build.release.name} · ${build.commitHash?.slice(0, 7) ?? "commit unavailable"} · ${timestamp}`)
 					.addButton((button) => button.setButtonText("Install").onClick(async () => {
 						button.setDisabled(true);
 						button.setButtonText("Installing…");
