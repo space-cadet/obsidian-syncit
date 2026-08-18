@@ -1,5 +1,6 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type SyncItPlugin from "../main";
+import type { LogEntry, LogLevel } from "../logging/SyncLogger";
 import type {
 	FileEntity,
 	ReconciliationDecision,
@@ -10,6 +11,8 @@ import type {
 
 export const SYNC_SIDEBAR_VIEW_TYPE = "syncit-sidebar";
 
+type SidebarTab = "sync" | "log";
+
 type FileLogOperation =
 	| "upload" | "download" | "conflict" | "error" | "delete"
 	| "planned-upload" | "planned-download" | "planned-conflict" | "planned-error" | "planned-delete";
@@ -17,28 +20,39 @@ type FileLogOperation =
 export class SyncSidebarView extends ItemView {
 	private plugin: SyncItPlugin;
 
-	// Idle UI
-	statusEl!: HTMLElement;
-	lastSyncEl!: HTMLElement;
-	syncBtn!: HTMLElement;
-	settingsBtn!: HTMLElement;
+	// ── Tabs ──
+	private activeTab: SidebarTab = "sync";
+	private tabsContainer!: HTMLElement;
+	private contentContainer!: HTMLElement;
+	private syncContent!: HTMLElement;
+	private logContent!: HTMLElement;
 
-	// Progress UI (created dynamically)
+	// ── Sync tab UI ──
+	private statusEl!: HTMLElement;
+	private lastSyncEl!: HTMLElement;
+	private syncBtn!: HTMLElement;
+	private settingsBtn!: HTMLElement;
 	private progressSection: HTMLElement | null = null;
 	private progressFillEl: HTMLElement | null = null;
 	private progressPercentEl: HTMLElement | null = null;
 	private progressSizeEl: HTMLElement | null = null;
 	private statEls: Map<string, { valueEl: HTMLElement; labelEl: HTMLElement }> = new Map();
-	private fileLogEl: HTMLElement | null = null;
 	private cancelBtn: HTMLElement | null = null;
 	private completionSection: HTMLElement | null = null;
 	private reconciliationSection: HTMLElement | null = null;
-	// Persistent log section (always visible)
 	private logSection: HTMLElement | null = null;
 	private logHeaderEl: HTMLElement | null = null;
 	private logListEl: HTMLElement | null = null;
 
-	// State
+	// ── Log tab UI ──
+	private logFilter: LogFilter = "ALL";
+	private logSearchQuery = "";
+	private logFilterBtns: Map<LogFilter, HTMLElement> = new Map();
+	private logSearchInput: HTMLInputElement | null = null;
+	private logListContainer: HTMLElement | null = null;
+	private logRefreshInterval: number | null = null;
+
+	// ── State ──
 	private isSyncing = false;
 	private startTime = 0;
 	private totalOps = 0;
@@ -74,36 +88,116 @@ export class SyncSidebarView extends ItemView {
 		container.style.minWidth = "0";
 		container.style.overflowX = "hidden";
 
-		// Header
-		const header = container.createDiv("syncit-sidebar-header");
-		header.style.padding = "12px 16px";
-		header.style.borderBottom = "1px solid var(--background-modifier-border)";
-		header.style.display = "flex";
-		header.style.alignItems = "center";
-		header.style.gap = "8px";
-		header.style.minWidth = "0";
+		// ── Tabs wrapper ──
+		const tabsWrapper = container.createDiv("syncit-tabs-wrapper");
+		tabsWrapper.style.display = "flex";
+		tabsWrapper.style.alignItems = "center";
+		tabsWrapper.style.gap = "8px";
+		tabsWrapper.style.padding = "8px 16px";
+		tabsWrapper.style.borderBottom = "1px solid var(--background-modifier-border)";
+		tabsWrapper.style.background = "var(--background-primary-alt)";
 
-		const icon = header.createEl("span");
-		icon.setText("🔄");
-		icon.style.fontSize = "1.2em";
+		this.tabsContainer = tabsWrapper.createDiv("syncit-tabs");
+		this.tabsContainer.style.display = "flex";
+		this.tabsContainer.style.gap = "4px";
+		this.tabsContainer.style.flex = "1";
 
-		const title = header.createEl("h3");
-		title.setText("SyncIt");
-		title.style.margin = "0";
-		title.style.fontSize = "1.1em";
-		title.style.fontWeight = "600";
-		title.style.flex = "1";
-		title.style.minWidth = "0";
-
-		this.settingsBtn = header.createEl("button", { attr: { "aria-label": "Open SyncIt settings", "title": "Settings" } });
+		this.settingsBtn = tabsWrapper.createEl("button", {
+			attr: { "aria-label": "Open SyncIt settings", title: "Settings" },
+		});
 		this.settingsBtn.setText("⚙");
-		this.settingsBtn.style.flex = "0 0 auto";
 		this.settingsBtn.style.fontSize = "1.1em";
 		this.settingsBtn.style.padding = "2px 6px";
+		this.settingsBtn.style.flex = "0 0 auto";
 		this.settingsBtn.addEventListener("click", () => this.openSettings());
 
-		// Status section (always visible)
-		const statusSection = container.createDiv("syncit-sidebar-status");
+		this.renderTabs();
+
+		// ── Content container ──
+		this.contentContainer = container.createDiv("syncit-content-container");
+		this.contentContainer.style.flex = "1";
+		this.contentContainer.style.overflow = "hidden";
+		this.contentContainer.style.display = "flex";
+		this.contentContainer.style.flexDirection = "column";
+
+		// Build both tab contents
+		this.buildSyncTab();
+		this.buildLogTab();
+
+		this.showTab("sync");
+
+		// Auto-refresh log when visible
+		this.logRefreshInterval = window.setInterval(() => {
+			if (this.activeTab === "log" && this.containerEl.isShown()) {
+				void this.refreshLogTab();
+			}
+		}, 3000);
+	}
+
+	async onClose(): Promise<void> {
+		if (this.logRefreshInterval !== null) {
+			window.clearInterval(this.logRefreshInterval);
+			this.logRefreshInterval = null;
+		}
+	}
+
+	// ═══════════════════════════════════════
+	//  Tabs
+	// ═══════════════════════════════════════
+
+	private renderTabs(): void {
+		this.tabsContainer.empty();
+		const tabs: { id: SidebarTab; label: string }[] = [
+			{ id: "sync", label: "Sync" },
+			{ id: "log", label: "Log" },
+		];
+		for (const tab of tabs) {
+			const btn = this.tabsContainer.createEl("button", { text: tab.label });
+			btn.style.padding = "3px 12px";
+			btn.style.fontSize = "0.85em";
+			btn.style.borderRadius = "4px";
+			btn.style.border = "none";
+			btn.style.cursor = "pointer";
+			btn.style.background = tab.id === this.activeTab
+				? "var(--interactive-accent)"
+				: "transparent";
+			btn.style.color = tab.id === this.activeTab
+				? "var(--text-on-accent)"
+				: "var(--text-muted)";
+			btn.style.fontWeight = tab.id === this.activeTab ? "600" : "400";
+			btn.style.transition = "all 0.15s ease";
+			btn.addEventListener("click", () => {
+				this.showTab(tab.id);
+			});
+		}
+	}
+
+	private showTab(tab: SidebarTab): void {
+		this.activeTab = tab;
+		this.renderTabs();
+		if (tab === "sync") {
+			this.syncContent.style.display = "flex";
+			this.logContent.style.display = "none";
+		} else {
+			this.syncContent.style.display = "none";
+			this.logContent.style.display = "flex";
+			void this.refreshLogTab();
+		}
+	}
+
+	// ═══════════════════════════════════════
+	//  Sync Tab
+	// ═══════════════════════════════════════
+
+	private buildSyncTab(): void {
+		this.syncContent = this.contentContainer.createDiv("syncit-sync-tab");
+		this.syncContent.style.display = "flex";
+		this.syncContent.style.flexDirection = "column";
+		this.syncContent.style.height = "100%";
+		this.syncContent.style.overflow = "hidden";
+
+		// Status section
+		const statusSection = this.syncContent.createDiv("syncit-sidebar-status");
 		statusSection.style.padding = "12px 16px";
 		statusSection.style.borderBottom = "1px solid var(--background-modifier-border)";
 
@@ -123,14 +217,13 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
-		// Actions section — mode selector + Sync / Dry Run buttons
-		const actionsSection = container.createDiv("syncit-sidebar-actions");
+		// Actions section
+		const actionsSection = this.syncContent.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
 		actionsSection.style.display = "flex";
 		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
 
-		// Mode selector row
 		const modeRow = actionsSection.createDiv("syncit-mode-selector-row");
 		modeRow.style.display = "flex";
 		modeRow.style.alignItems = "center";
@@ -157,7 +250,6 @@ export class SyncSidebarView extends ItemView {
 			this.selectedMode = modeSelect.value as ReconciliationMode;
 		});
 
-		// Action buttons row
 		const btnRow = actionsSection.createDiv("syncit-action-buttons");
 		btnRow.style.display = "flex";
 		btnRow.style.gap = "8px";
@@ -175,7 +267,6 @@ export class SyncSidebarView extends ItemView {
 			this.plugin.performDryRun(this.selectedMode);
 		});
 
-		// Secondary actions
 		const secondaryRow = actionsSection.createDiv("syncit-secondary-actions");
 		secondaryRow.style.display = "flex";
 		secondaryRow.style.gap = "8px";
@@ -186,19 +277,15 @@ export class SyncSidebarView extends ItemView {
 		rebuildBtn.style.fontSize = "0.85em";
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
-		// Spacer
-		const spacer = container.createDiv();
-		spacer.style.flex = "0 0 0";
-
-		// Persistent sync log section (always visible)
-		this.logSection = container.createDiv("syncit-sidebar-log");
+		// Real-time sync log section
+		this.logSection = this.syncContent.createDiv("syncit-sidebar-log");
 		this.logSection.style.padding = "12px 16px";
 		this.logSection.style.borderTop = "1px solid var(--background-modifier-border)";
 		this.logSection.style.display = "flex";
 		this.logSection.style.flexDirection = "column";
 		this.logSection.style.flex = "1 1 0";
-		this.logSection.style.minHeight = "260px";
-		this.logSection.style.maxHeight = "60vh";
+		this.logSection.style.minHeight = "200px";
+		this.logSection.style.overflow = "hidden";
 
 		this.logHeaderEl = this.logSection.createEl("div");
 		this.logHeaderEl.style.fontSize = "0.75em";
@@ -216,30 +303,325 @@ export class SyncSidebarView extends ItemView {
 		this.logListEl.style.fontSize = "0.85em";
 
 		// Connection info
-		const infoSection = container.createDiv("syncit-sidebar-info");
+		const infoSection = this.syncContent.createDiv("syncit-sidebar-info");
 		infoSection.style.padding = "12px 16px";
 		infoSection.style.fontSize = "0.8em";
 		infoSection.style.color = "var(--text-muted)";
 		infoSection.style.borderTop = "1px solid var(--background-modifier-border)";
+		infoSection.style.flex = "0 0 auto";
 
 		const url = this.plugin.settings.webdavUrl || "Not configured";
 		infoSection.createEl("div", { text: `Server: ${url}` });
 	}
+
+	// ═══════════════════════════════════════
+	//  Log Tab
+	// ═══════════════════════════════════════
+
+	private buildLogTab(): void {
+		this.logContent = this.contentContainer.createDiv("syncit-log-tab");
+		this.logContent.style.display = "none";
+		this.logContent.style.flexDirection = "column";
+		this.logContent.style.height = "100%";
+		this.logContent.style.overflow = "hidden";
+
+		// Filter bar
+		const filterBar = this.logContent.createDiv("syncit-log-filters");
+		filterBar.style.padding = "8px 16px";
+		filterBar.style.borderBottom = "1px solid var(--background-modifier-border)";
+		filterBar.style.display = "flex";
+		filterBar.style.flexWrap = "wrap";
+		filterBar.style.gap = "4px";
+
+		const filters: Array<{ value: LogFilter; label: string }> = [
+			{ value: "ALL", label: "All" },
+			{ value: "ERROR", label: "Error" },
+			{ value: "WARNING", label: "Warning" },
+			{ value: "INFO", label: "Info" },
+			{ value: "DEBUG", label: "Debug" },
+		];
+
+		for (const f of filters) {
+			const btn = filterBar.createEl("button");
+			btn.setText(f.label);
+			btn.style.padding = "3px 10px";
+			btn.style.fontSize = "0.8em";
+			btn.style.borderRadius = "4px";
+			btn.style.border = "1px solid var(--background-modifier-border)";
+			btn.style.background = "var(--background-primary)";
+			btn.style.cursor = "pointer";
+			btn.addEventListener("click", () => this.setLogFilter(f.value));
+			this.logFilterBtns.set(f.value, btn);
+		}
+
+		// Search row
+		const searchRow = this.logContent.createDiv("syncit-log-search");
+		searchRow.style.padding = "8px 16px";
+		searchRow.style.borderBottom = "1px solid var(--background-modifier-border)";
+		searchRow.style.display = "flex";
+		searchRow.style.gap = "8px";
+
+		this.logSearchInput = searchRow.createEl("input");
+		this.logSearchInput.type = "text";
+		this.logSearchInput.placeholder = "Search logs...";
+		this.logSearchInput.style.flex = "1";
+		this.logSearchInput.addClass("syncit-log-search-input");
+		this.logSearchInput.addEventListener("input", () => {
+			this.logSearchQuery = this.logSearchInput!.value;
+			void this.refreshLogTab();
+		});
+
+		const clearBtn = searchRow.createEl("button");
+		clearBtn.setText("Clear");
+		clearBtn.addClass("mod-warning");
+		clearBtn.style.fontSize = "0.8em";
+		clearBtn.addEventListener("click", () => {
+			if (confirm("Clear all sync logs? This cannot be undone.")) {
+				void this.plugin.logger?.clear().then(() => {
+					new Notice("Sync log cleared");
+					void this.refreshLogTab();
+				});
+			}
+		});
+
+		// Log list
+		this.logListContainer = this.logContent.createDiv("syncit-log-list");
+		this.logListContainer.style.flex = "1";
+		this.logListContainer.style.overflowY = "auto";
+		this.logListContainer.style.padding = "8px 16px";
+
+		this.updateLogFilterButtons();
+	}
+
+	private setLogFilter(filter: LogFilter): void {
+		this.logFilter = filter;
+		this.updateLogFilterButtons();
+		void this.refreshLogTab();
+	}
+
+	private updateLogFilterButtons(): void {
+		for (const [value, btn] of this.logFilterBtns) {
+			const isActive = value === this.logFilter;
+			btn.style.background = isActive ? "var(--interactive-accent)" : "var(--background-primary)";
+			btn.style.color = isActive ? "var(--text-on-accent)" : "var(--text-normal)";
+			btn.style.borderColor = isActive ? "var(--interactive-accent)" : "var(--background-modifier-border)";
+			btn.style.fontWeight = isActive ? "600" : "400";
+		}
+	}
+
+	private async refreshLogTab(): Promise<void> {
+		if (!this.logListContainer || !this.plugin.logger) return;
+
+		const entries = await this.plugin.logger.readEntries({
+			level: this.logFilter === "ALL" ? undefined : this.logFilter,
+			search: this.logSearchQuery || undefined,
+			limit: 500,
+		});
+
+		this.logListContainer.empty();
+
+		if (entries.length === 0) {
+			const empty = this.logListContainer.createEl("div");
+			empty.style.textAlign = "center";
+			empty.style.padding = "40px 20px";
+			empty.style.color = "var(--text-muted)";
+			empty.setText("No log entries");
+			return;
+		}
+
+		const groups = this.groupBySession(entries);
+
+		for (const group of groups) {
+			const sessionEl = this.logListContainer.createDiv("syncit-log-session");
+			sessionEl.style.marginBottom = "12px";
+			sessionEl.style.border = "1px solid var(--background-modifier-border)";
+			sessionEl.style.borderRadius = "6px";
+			sessionEl.style.overflow = "hidden";
+
+			const sessionHeader = sessionEl.createDiv("syncit-log-session-header");
+			sessionHeader.style.padding = "8px 12px";
+			sessionHeader.style.background = "var(--background-primary-alt)";
+			sessionHeader.style.cursor = "pointer";
+			sessionHeader.style.display = "flex";
+			sessionHeader.style.alignItems = "center";
+			sessionHeader.style.gap = "8px";
+
+			const startTime = new Date(group.startTime);
+			const timeStr = startTime.toLocaleString();
+			const entryCount = group.entries.length;
+
+			const expandIcon = sessionHeader.createEl("span");
+			expandIcon.setText("▼");
+			expandIcon.style.fontSize = "0.8em";
+			expandIcon.style.transition = "transform 0.2s";
+
+			const title = sessionHeader.createEl("span");
+			title.style.fontWeight = "600";
+			title.style.fontSize = "0.9em";
+			title.setText(`Session · ${timeStr}`);
+
+			const countBadge = sessionHeader.createEl("span");
+			countBadge.style.fontSize = "0.75em";
+			countBadge.style.padding = "1px 6px";
+			countBadge.style.borderRadius = "8px";
+			countBadge.style.background = "var(--background-modifier-border)";
+			countBadge.setText(String(entryCount));
+
+			const levelCounts = this.countLevels(group.entries);
+			const levelSummary = sessionHeader.createEl("span");
+			levelSummary.style.marginLeft = "auto";
+			levelSummary.style.fontSize = "0.75em";
+			levelSummary.style.display = "flex";
+			levelSummary.style.gap = "4px";
+
+			for (const [level, count] of Object.entries(levelCounts)) {
+				if (count === 0) continue;
+				const badge = levelSummary.createEl("span");
+				badge.style.padding = "1px 5px";
+				badge.style.borderRadius = "3px";
+				badge.style.fontSize = "0.7em";
+				badge.style.fontWeight = "600";
+				const colors = this.getLevelColors(level as LogLevel);
+				badge.style.background = colors.bg;
+				badge.style.color = colors.fg;
+				badge.setText(`${level}: ${count}`);
+			}
+
+			const entriesContainer = sessionEl.createDiv("syncit-log-session-entries");
+			entriesContainer.style.padding = "4px 0";
+
+			for (const entry of group.entries) {
+				this.renderLogEntry(entriesContainer, entry);
+			}
+
+			let expanded = true;
+			sessionHeader.addEventListener("click", () => {
+				expanded = !expanded;
+				entriesContainer.style.display = expanded ? "block" : "none";
+				expandIcon.style.transform = expanded ? "rotate(0deg)" : "rotate(-90deg)";
+			});
+		}
+	}
+
+	private renderLogEntry(container: HTMLElement, entry: LogEntry): void {
+		const row = container.createDiv("syncit-log-entry");
+		row.style.padding = "6px 12px";
+		row.style.borderBottom = "1px solid var(--background-modifier-border-hover)";
+		row.style.display = "flex";
+		row.style.alignItems = "flex-start";
+		row.style.gap = "8px";
+
+		const levelBadge = row.createEl("span");
+		levelBadge.setText(entry.level);
+		levelBadge.style.fontSize = "0.65em";
+		levelBadge.style.fontWeight = "700";
+		levelBadge.style.padding = "2px 6px";
+		levelBadge.style.borderRadius = "3px";
+		levelBadge.style.whiteSpace = "nowrap";
+		levelBadge.style.flex = "0 0 auto";
+		const colors = this.getLevelColors(entry.level);
+		levelBadge.style.background = colors.bg;
+		levelBadge.style.color = colors.fg;
+
+		const content = row.createDiv();
+		content.style.flex = "1";
+		content.style.minWidth = "0";
+
+		const meta = content.createEl("div");
+		meta.style.fontSize = "0.75em";
+		meta.style.color = "var(--text-muted)";
+		meta.style.marginBottom = "2px";
+		const timeStr = new Date(entry.timestamp).toLocaleTimeString();
+		meta.setText(`${timeStr} · ${entry.category}`);
+
+		const message = content.createEl("div");
+		message.style.fontSize = "0.85em";
+		message.style.wordBreak = "break-word";
+		message.setText(entry.message);
+
+		if (entry.details && Object.keys(entry.details).length > 0) {
+			const detailsBtn = content.createEl("button");
+			detailsBtn.setText("Details");
+			detailsBtn.style.fontSize = "0.75em";
+			detailsBtn.style.padding = "2px 8px";
+			detailsBtn.style.marginTop = "4px";
+			detailsBtn.style.border = "1px solid var(--background-modifier-border)";
+			detailsBtn.style.background = "var(--background-primary)";
+			detailsBtn.style.borderRadius = "4px";
+			detailsBtn.style.cursor = "pointer";
+
+			const detailsEl = content.createEl("pre");
+			detailsEl.style.display = "none";
+			detailsEl.style.fontSize = "0.75em";
+			detailsEl.style.background = "var(--background-primary-alt)";
+			detailsEl.style.padding = "8px";
+			detailsEl.style.borderRadius = "4px";
+			detailsEl.style.marginTop = "4px";
+			detailsEl.style.overflowX = "auto";
+			detailsEl.setText(JSON.stringify(entry.details, null, 2));
+
+			detailsBtn.addEventListener("click", () => {
+				const isVisible = detailsEl.style.display === "block";
+				detailsEl.style.display = isVisible ? "none" : "block";
+				detailsBtn.setText(isVisible ? "Details" : "Hide");
+			});
+		}
+	}
+
+	private groupBySession(entries: LogEntry[]): { startTime: string; entries: LogEntry[] }[] {
+		if (entries.length === 0) return [];
+		const groups: { startTime: string; entries: LogEntry[] }[] = [];
+		let current: LogEntry[] = [];
+		let lastTime = new Date(entries[0].timestamp).getTime();
+		for (const entry of entries) {
+			const entryTime = new Date(entry.timestamp).getTime();
+			if (entryTime - lastTime > 5 * 60 * 1000) {
+				if (current.length > 0) groups.push({ startTime: current[0].timestamp, entries: current });
+				current = [];
+			}
+			current.push(entry);
+			lastTime = entryTime;
+		}
+		if (current.length > 0) groups.push({ startTime: current[0].timestamp, entries: current });
+		return groups;
+	}
+
+	private countLevels(entries: LogEntry[]): Record<LogLevel, number> {
+		const counts: Record<string, number> = { ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0 };
+		for (const e of entries) counts[e.level] = (counts[e.level] ?? 0) + 1;
+		return counts as Record<LogLevel, number>;
+	}
+
+	private getLevelColors(level: LogLevel): { bg: string; fg: string } {
+		switch (level) {
+			case "ERROR": return { bg: "rgba(var(--color-red-rgb), 0.15)", fg: "var(--color-red)" };
+			case "WARNING": return { bg: "rgba(var(--color-orange-rgb), 0.15)", fg: "var(--color-orange)" };
+			case "INFO": return { bg: "rgba(var(--color-blue-rgb), 0.12)", fg: "var(--color-blue)" };
+			case "DEBUG": return { bg: "var(--background-modifier-border)", fg: "var(--text-muted)" };
+		}
+	}
+
+	// ═══════════════════════════════════════
+	//  Shared
+	// ═══════════════════════════════════════
 
 	updateSyncMode() {
 		this.selectedMode = this.plugin.settings.syncDirection;
 	}
 
 	private openSettings() {
-		// @ts-ignore Obsidian's settings API is not exposed in the public typings.
+		// @ts-ignore
 		this.app.setting.open();
 		// @ts-ignore
 		this.app.setting.openTabById(this.plugin.manifest.id);
 	}
 
+	switchToLogTab(): void {
+		this.showTab("log");
+	}
+
 	// ─── Progress API ───
 
-	/** Phase 2: Show pre-sync plan summary. */
 	setPlan(plan: SyncPlan) {
 		this.isSyncing = true;
 		this._removeReconciliationUI();
@@ -262,8 +644,6 @@ export class SyncSidebarView extends ItemView {
 		this.currentPlan = plan;
 
 		this.statusEl.setText("Syncing...");
-
-		// Pre-sync summary
 		const parts: string[] = [];
 		if (plan.uploads.length > 0) parts.push(`${plan.uploads.length}↑ ${formatBytes(plan.uploadSize)}`);
 		if (plan.downloads.length > 0) parts.push(`${plan.downloads.length}↓ ${formatBytes(plan.downloadSize)}`);
@@ -280,14 +660,11 @@ export class SyncSidebarView extends ItemView {
 		this._updateStats();
 	}
 
-	/** Stop before transfers when the plan contains ambiguous or destructive decisions. */
 	setReconciliationRequired(plan: SyncPlan) {
 		this.isSyncing = false;
 		this.currentPlan = plan;
 		this.statusEl.setText("Reconciliation required");
-		this.lastSyncEl.setText(
-			`${plan.reconciliation.length} file(s) need a decision before syncing`,
-		);
+		this.lastSyncEl.setText(`${plan.reconciliation.length} file(s) need a decision before syncing`);
 		this._removeProgressUI();
 		this._removeCompletionUI();
 		this._renderReconciliationReview(plan);
@@ -300,7 +677,7 @@ export class SyncSidebarView extends ItemView {
 
 	private _renderReconciliationReview(plan: SyncPlan) {
 		this._removeReconciliationUI();
-		const container = this.containerEl.children[1] as HTMLElement;
+		const container = this.syncContent;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
 
@@ -334,9 +711,7 @@ export class SyncSidebarView extends ItemView {
 			{ value: "upload-only", label: "Upload-only — keep local files" },
 			{ value: "download-only", label: "Download-only — use remote files" },
 		];
-		for (const mode of modes) {
-			modeSelect.createEl("option", { value: mode.value, text: mode.label });
-		}
+		for (const mode of modes) modeSelect.createEl("option", { value: mode.value, text: mode.label });
 
 		const itemList = this.reconciliationSection.createDiv();
 		itemList.style.maxHeight = "min(52vh, 460px)";
@@ -390,9 +765,7 @@ export class SyncSidebarView extends ItemView {
 		const updateApplyState = () => {
 			applyButton.disabled = Array.from(itemSelects.values()).some(select => select.value === "skip");
 		};
-		for (const select of itemSelects.values()) {
-			select.addEventListener("change", updateApplyState);
-		}
+		for (const select of itemSelects.values()) select.addEventListener("change", updateApplyState);
 		modeSelect.addEventListener("change", () => {
 			const decision = modeSelect.value === "upload-only" ? "use-local" : modeSelect.value === "download-only" ? "use-remote" : "skip";
 			for (const select of itemSelects.values()) select.value = decision;
@@ -401,37 +774,27 @@ export class SyncSidebarView extends ItemView {
 		cancelButton.addEventListener("click", () => this.plugin.cancelReconciliation());
 		applyButton.addEventListener("click", () => {
 			const decisions: Record<string, ReconciliationDecision> = {};
-			for (const [path, select] of itemSelects) {
-				decisions[path] = select.value as ReconciliationDecision;
-			}
+			for (const [path, select] of itemSelects) decisions[path] = select.value as ReconciliationDecision;
 			this.plugin.applyReconciliation(plan, modeSelect.value as ReconciliationMode, decisions);
 		});
 	}
 
-	/** Phase 3: Called during transfer with size-based progress. */
 	updateProgress(current: number, total: number, operation: string, path: string, bytesTransferred: number, totalBytes: number) {
 		this.completedOps = current;
 		this.transferredBytes = bytesTransferred;
 		this.totalBytes = totalBytes;
 		this._updateProgressBar();
-
 		const elapsed = Date.now() - this.startTime;
 		this.lastSyncEl.setText(`${current} of ${total} · ${formatDuration(elapsed)}`);
-
-		// Track counters
 		const opType = operation.includes("upload") ? "upload" :
 			operation.includes("download") ? "download" :
 			operation.includes("delete") ? "delete" :
 			operation.includes("conflict") ? "conflict" : "upload";
-
 		if (opType === "upload") this.uploaded++;
 		else if (opType === "download") this.overwritten++;
 		else if (opType === "delete") this.deleted++;
 		else if (opType === "conflict") this.conflicts++;
-
 		this._updateStats();
-
-		// File log
 		let size = 0;
 		if (this.currentPlan) {
 			const uploadFile = this.currentPlan.uploads.find(f => f.path === path || f.targetPath === path);
@@ -440,7 +803,6 @@ export class SyncSidebarView extends ItemView {
 			size = uploadFile?.size ?? downloadFile?.size ?? 0;
 			if (conflict) size = operation.includes("upload") ? conflict.local.size : conflict.remote.size;
 		}
-
 		this._addFileLogEntry(path, operation.includes("(dry-run)") ? `planned-${opType}` : opType, { size });
 	}
 
@@ -452,18 +814,15 @@ export class SyncSidebarView extends ItemView {
 			this.logHeaderEl.setText(`✅ Sync complete · ${formatDuration(elapsed)}`);
 			this.logHeaderEl.style.color = "var(--text-success)";
 		}
-
 		this.statusEl.setText("Ready");
 		this.lastSyncEl.setText(`${result.message} · ${formatDuration(elapsed)}`);
-
-		this._removeProgressUI(); // removes bar, stats, cancel — log stays
+		this._removeProgressUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
 		this.syncBtn.setText("Sync");
 		this._showCompletionSummary(result, elapsed);
 	}
 
-	/** Show dry run result — no transfers happened. */
 	showDryRunResult(result: SyncResult & { message: string }) {
 		this.isSyncing = false;
 		this._removeReconciliationUI();
@@ -471,24 +830,18 @@ export class SyncSidebarView extends ItemView {
 			this.logHeaderEl.setText("🧪 Dry run complete — no changes made");
 			this.logHeaderEl.style.color = "var(--text-accent)";
 		}
-
 		this.statusEl.setText("Ready");
 		this.lastSyncEl.setText(result.message);
-
 		this._removeProgressUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
 		this.syncBtn.setText("Sync");
-
-		// Show summary cards
-		const container = this.containerEl.children[1] as HTMLElement;
+		const container = this.syncContent;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
-
 		this.completionSection = container.createDiv("syncit-sidebar-completion");
 		this.completionSection.style.padding = "0 16px 12px";
 		container.insertBefore(this.completionSection, actionsSection);
-
 		const title = this.completionSection.createEl("div");
 		title.style.textAlign = "center";
 		title.style.marginBottom = "10px";
@@ -496,7 +849,6 @@ export class SyncSidebarView extends ItemView {
 		title.style.fontWeight = "600";
 		title.style.color = "var(--text-accent)";
 		title.setText("🧪 Dry Run Result");
-
 		const cards: Array<{ count: number; label: string; sub: string; icon: string; color: string }> = [
 			{ count: result.uploaded, label: "would upload", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
 			{ count: result.downloaded, label: "would download", sub: formatBytes(result.downloadedBytes), icon: "🔄", color: "var(--color-blue)" },
@@ -504,7 +856,6 @@ export class SyncSidebarView extends ItemView {
 			{ count: result.conflicts, label: "conflicts", sub: "need review", icon: "⚠️", color: "var(--color-orange)" },
 			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
 		];
-
 		for (const card of cards) {
 			if (card.count === 0) continue;
 			const row = this.completionSection.createDiv();
@@ -515,26 +866,21 @@ export class SyncSidebarView extends ItemView {
 			row.style.marginBottom = "4px";
 			row.style.background = "var(--background-primary-alt)";
 			row.style.borderRadius = "6px";
-
 			const iconEl = row.createEl("span");
 			iconEl.setText(card.icon);
 			iconEl.style.fontSize = "1.2em";
-
 			const info = row.createDiv();
 			info.style.flex = "1";
-
 			const countEl = info.createEl("div");
 			countEl.style.fontSize = "1.2em";
 			countEl.style.fontWeight = "700";
 			countEl.style.color = card.color;
 			countEl.setText(String(card.count));
-
 			const labelEl = info.createEl("div");
 			labelEl.style.fontSize = "0.8em";
 			labelEl.style.color = "var(--text-muted)";
 			labelEl.setText(`${card.label} · ${card.sub}`);
 		}
-
 		const note = this.completionSection.createEl("div");
 		note.style.textAlign = "center";
 		note.style.marginTop = "8px";
@@ -576,8 +922,6 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.setText("Sync");
 	}
 
-	// ─── Idle State ───
-
 	updateStatus(status: string, lastSync?: string) {
 		if (!this.isSyncing) {
 			this.statusEl.setText(status);
@@ -592,7 +936,6 @@ export class SyncSidebarView extends ItemView {
 		}
 	}
 
-	/** Show spinner during scan phase (before plan is ready). */
 	setScanning() {
 		this.statusEl.setText("Scanning...");
 		this.lastSyncEl.setText("Comparing local and remote files");
@@ -606,8 +949,7 @@ export class SyncSidebarView extends ItemView {
 
 	private _ensureProgressUI() {
 		if (this.progressSection) return;
-
-		const container = this.containerEl.children[1] as HTMLElement;
+		const container = this.syncContent;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
 
@@ -615,7 +957,6 @@ export class SyncSidebarView extends ItemView {
 		this.progressSection.style.padding = "0 16px 12px";
 		container.insertBefore(this.progressSection, actionsSection);
 
-		// Progress bar
 		const progressContainer = this.progressSection.createDiv();
 		progressContainer.style.height = "6px";
 		progressContainer.style.background = "var(--background-modifier-border)";
@@ -630,7 +971,6 @@ export class SyncSidebarView extends ItemView {
 		this.progressFillEl.style.transition = "width 0.2s ease";
 		this.progressFillEl.style.borderRadius = "3px";
 
-		// Percent + size row
 		const infoRow = this.progressSection.createDiv();
 		infoRow.style.display = "flex";
 		infoRow.style.justifyContent = "space-between";
@@ -646,7 +986,6 @@ export class SyncSidebarView extends ItemView {
 		this.progressSizeEl.style.color = "var(--text-muted)";
 		this.progressSizeEl.setText("0 B / 0 B");
 
-		// Stats row
 		const statsRow = this.progressSection.createDiv();
 		statsRow.style.display = "flex";
 		statsRow.style.justifyContent = "space-around";
@@ -668,27 +1007,22 @@ export class SyncSidebarView extends ItemView {
 			card.style.textAlign = "center";
 			card.style.flex = "1";
 			card.style.minWidth = "40px";
-
 			const valueEl = card.createEl("div");
 			valueEl.style.fontSize = "1em";
 			valueEl.style.fontWeight = "700";
 			valueEl.style.color = def.color;
 			valueEl.setText("0");
-
 			const labelEl = card.createEl("div");
 			labelEl.style.fontSize = "0.65em";
 			labelEl.style.color = "var(--text-faint)";
 			labelEl.setText(def.label);
-
 			this.statEls.set(def.key, { valueEl, labelEl });
 		}
 
-		// Cancel button
 		this.cancelBtn = this.progressSection.createEl("button", { text: "Cancel", cls: "mod-warning" });
 		this.cancelBtn.style.width = "100%";
 		this.cancelBtn.addEventListener("click", () => this.plugin.cancelSync());
 
-		// Operations log header (entries go to persistent logListEl)
 		const logHeader = this.progressSection.createEl("div");
 		logHeader.style.fontSize = "0.75em";
 		logHeader.style.color = "var(--text-faint)";
@@ -703,28 +1037,24 @@ export class SyncSidebarView extends ItemView {
 			this.progressFillEl = null;
 			this.progressPercentEl = null;
 			this.progressSizeEl = null;
-			this.fileLogEl = null;
 			this.cancelBtn = null;
 			this.statEls.clear();
 		}
 	}
 
 	private _showCompletionSummary(result: SyncResult & { message: string }, elapsedMs: number) {
-		const container = this.containerEl.children[1] as HTMLElement;
+		const container = this.syncContent;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions");
 		if (!actionsSection) return;
-
 		this.completionSection = container.createDiv("syncit-sidebar-completion");
 		this.completionSection.style.padding = "0 16px 12px";
 		container.insertBefore(this.completionSection, actionsSection);
-
 		const title = this.completionSection.createEl("div");
 		title.style.textAlign = "center";
 		title.style.marginBottom = "10px";
 		title.style.fontSize = "1em";
 		title.style.fontWeight = "600";
 		title.setText("✅ Sync complete");
-
 		const cards: Array<{ count: number; label: string; sub: string; icon: string; color: string }> = [
 			{ count: result.uploaded, label: "uploaded", sub: formatBytes(result.uploadedBytes), icon: "📤", color: "var(--color-green)" },
 			{ count: result.skipped, label: "skipped", sub: "already identical", icon: "⏭️", color: "var(--text-muted)" },
@@ -732,7 +1062,6 @@ export class SyncSidebarView extends ItemView {
 			{ count: result.deleted, label: "deleted", sub: "local or remote", icon: "🗑", color: "var(--text-error)" },
 			{ count: result.conflicts, label: "conflict", sub: "needs review", icon: "⚠️", color: "var(--color-orange)" },
 		];
-
 		for (const card of cards) {
 			if (card.count === 0) continue;
 			const row = this.completionSection.createDiv();
@@ -743,27 +1072,21 @@ export class SyncSidebarView extends ItemView {
 			row.style.marginBottom = "4px";
 			row.style.background = "var(--background-primary-alt)";
 			row.style.borderRadius = "6px";
-
 			const iconEl = row.createEl("span");
 			iconEl.setText(card.icon);
 			iconEl.style.fontSize = "1.2em";
-
 			const info = row.createDiv();
 			info.style.flex = "1";
-
 			const countEl = info.createEl("div");
 			countEl.style.fontSize = "1.2em";
 			countEl.style.fontWeight = "700";
 			countEl.style.color = card.color;
 			countEl.setText(String(card.count));
-
 			const labelEl = info.createEl("div");
 			labelEl.style.fontSize = "0.8em";
 			labelEl.style.color = "var(--text-muted)";
 			labelEl.setText(`${card.label} · ${card.sub}`);
 		}
-
-		// Duration
 		const durationEl = this.completionSection.createEl("div");
 		durationEl.style.textAlign = "center";
 		durationEl.style.marginTop = "8px";
@@ -812,7 +1135,6 @@ export class SyncSidebarView extends ItemView {
 		if (!this.logListEl) return;
 		const isPlanned = operation.startsWith("planned-");
 		const baseOperation = (isPlanned ? operation.slice("planned-".length) : operation) as Exclude<FileLogOperation, `planned-${string}`>;
-
 		const row = this.logListEl.createDiv();
 		row.style.display = "flex";
 		row.style.alignItems = "center";
@@ -820,53 +1142,33 @@ export class SyncSidebarView extends ItemView {
 		row.style.padding = "4px 6px";
 		row.style.background = "var(--background-primary-alt)";
 		row.style.borderRadius = "4px";
-
-		const icons: Record<string, string> = {
-			upload: "📄",
-			download: "🔄",
-			delete: "🗑",
-			conflict: "⚠️",
-			error: "❌",
-		};
-
+		const icons: Record<string, string> = { upload: "📄", download: "🔄", delete: "🗑", conflict: "⚠️", error: "❌" };
 		const icon = row.createEl("span");
 		icon.setText(icons[baseOperation] || "•");
 		icon.style.width = "18px";
 		icon.style.textAlign = "center";
 		icon.style.fontSize = "0.9em";
-
 		const info = row.createDiv();
 		info.style.flex = "1";
 		info.style.minWidth = "0";
 		info.style.overflow = "hidden";
-
 		const pathEl = info.createEl("div");
 		pathEl.style.overflow = "hidden";
 		pathEl.style.textOverflow = "ellipsis";
 		pathEl.style.whiteSpace = "nowrap";
 		pathEl.setText(path);
-
 		const metaEl = info.createEl("div");
 		metaEl.style.fontSize = "0.8em";
 		metaEl.style.color = "var(--text-faint)";
-
-		const subtitles: Record<string, string> = {
-			upload: "Uploading",
-			download: "Downloading",
-			delete: "Deleting",
-			conflict: "Conflict",
-			error: "Failed",
-		};
+		const subtitles: Record<string, string> = { upload: "Uploading", download: "Downloading", delete: "Deleting", conflict: "Conflict", error: "Failed" };
 		const sizeText = meta?.size ? ` · ${formatBytes(meta.size)}` : "";
 		metaEl.setText(`${isPlanned ? "Would " : ""}${subtitles[baseOperation]}${sizeText}`);
-
 		const badge = row.createEl("span");
 		badge.style.fontSize = "0.7em";
 		badge.style.padding = "2px 6px";
 		badge.style.borderRadius = "3px";
 		badge.style.fontWeight = "600";
 		badge.style.whiteSpace = "nowrap";
-
 		const badgeStyles: Record<string, { bg: string; color: string }> = {
 			upload: { bg: "rgba(var(--color-green-rgb), 0.12)", color: "var(--color-green)" },
 			download: { bg: "rgba(var(--color-blue-rgb), 0.12)", color: "var(--color-blue)" },
@@ -877,37 +1179,19 @@ export class SyncSidebarView extends ItemView {
 		const style = badgeStyles[baseOperation] || badgeStyles.error;
 		badge.style.background = style.bg;
 		badge.style.color = style.color;
-
-		const badgeLabels: Record<string, string> = {
-			upload: "Uploaded",
-			download: "Downloaded",
-			delete: "Deleted",
-			conflict: "Resolved",
-			error: "Error",
-		};
-		const plannedLabels: Record<string, string> = {
-			upload: "Would upload",
-			download: "Would download",
-			delete: "Would delete",
-			conflict: "Would review",
-			error: "Would fail",
-		};
+		const badgeLabels: Record<string, string> = { upload: "Uploaded", download: "Downloaded", delete: "Deleted", conflict: "Resolved", error: "Error" };
+		const plannedLabels: Record<string, string> = { upload: "Would upload", download: "Would download", delete: "Would delete", conflict: "Would review", error: "Would fail" };
 		badge.setText(isPlanned ? (plannedLabels[baseOperation] || "Would process") : (badgeLabels[baseOperation] || "Done"));
-
-		while (this.logListEl.children.length > 50) {
-			this.logListEl.firstChild?.remove();
-		}
+		while (this.logListEl.children.length > 50) this.logListEl.firstChild?.remove();
 		this.logListEl.scrollTop = this.logListEl.scrollHeight;
 	}
 
 	private _clearLog() {
-		if (this.logListEl) {
-			this.logListEl.empty();
-		}
+		if (this.logListEl) this.logListEl.empty();
 	}
-
-	async onClose() {}
 }
+
+// ─── Helpers ───
 
 function formatBytes(bytes: number): string {
 	if (bytes === 0) return "0 B";
@@ -942,3 +1226,5 @@ function fileSummary(item: SyncPlan["reconciliation"][number]): string {
 	const remote = item.remote ? `remote ${formatBytes(item.remote.size)}` : "no remote file";
 	return `${local}, ${remote}`;
 }
+
+type LogFilter = "ALL" | LogLevel;
