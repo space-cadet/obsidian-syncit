@@ -192,9 +192,39 @@ export class SyncSidebarView extends ItemView {
 
 	private openSyncMenu(event: MouseEvent) {
 		const menu = new Menu();
-		menu.addItem(item => item.setTitle("Two-way").setIcon("refresh-cw").setChecked(this.selectedMode === "two-way").onClick(() => this.plugin.performSync("two-way")));
-		menu.addItem(item => item.setTitle("Upload only").setIcon("upload").setChecked(this.selectedMode === "upload-only").onClick(() => this.plugin.performSync("upload-only")));
-		menu.addItem(item => item.setTitle("Download only").setIcon("download").setChecked(this.selectedMode === "download-only").onClick(() => this.plugin.performSync("download-only")));
+
+		// Mode selection + sync actions
+		menu.addItem(item => item
+			.setTitle("↕ Two-way sync")
+			.setIcon("refresh-cw")
+			.onClick(() => this.plugin.performSync("two-way")));
+		menu.addItem(item => item
+			.setTitle("↕ Two-way dry run")
+			.setIcon("test-tube")
+			.onClick(() => this.plugin.performDryRun("two-way")));
+
+		menu.addSeparator();
+
+		menu.addItem(item => item
+			.setTitle("↑ Upload only")
+			.setIcon("upload")
+			.onClick(() => this.plugin.performSync("upload-only")));
+		menu.addItem(item => item
+			.setTitle("↑ Upload only dry run")
+			.setIcon("test-tube")
+			.onClick(() => this.plugin.performDryRun("upload-only")));
+
+		menu.addSeparator();
+
+		menu.addItem(item => item
+			.setTitle("↓ Download only")
+			.setIcon("download")
+			.onClick(() => this.plugin.performSync("download-only")));
+		menu.addItem(item => item
+			.setTitle("↓ Download only dry run")
+			.setIcon("test-tube")
+			.onClick(() => this.plugin.performDryRun("download-only")));
+
 		menu.showAtMouseEvent(event);
 	}
 

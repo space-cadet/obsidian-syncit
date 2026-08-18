@@ -393,7 +393,7 @@ export default class SyncItPlugin extends Plugin {
 	}
 
 	/** Dry run: scan and build plan, but do not transfer anything. */
-	async performDryRun() {
+	async performDryRun(mode: ReconciliationMode = this.settings.syncDirection) {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
 			return;
@@ -462,7 +462,7 @@ export default class SyncItPlugin extends Plugin {
 			const plan = builder.buildPlan(
 				localFiles,
 				remoteFiles,
-				this.settings.syncDirection,
+				mode,
 				this.settings.downloadOrphanPolicy,
 				this.settings.uploadOrphanPolicy,
 			);
@@ -470,7 +470,7 @@ export default class SyncItPlugin extends Plugin {
 			// Apply reconciliation decisions if policy is follow-direction
 			let resolvedPlan = plan;
 			if (plan.requiresReconciliation && this.settings.reconciliationPolicy === "follow-direction") {
-				resolvedPlan = builder.applyReconciliationDecisions(plan, {}, this.settings.syncDirection);
+				resolvedPlan = builder.applyReconciliationDecisions(plan, {}, mode);
 			}
 
 			// DEBUG: Log plan summary
