@@ -187,14 +187,31 @@ export class SyncItSettingTab extends PluginSettingTab {
 			);
 
 		// Version info + manual check
+		containerEl.createEl("h3", { text: "Version" });
+
 		const versionRow = containerEl.createEl("div", { cls: "setting-item" });
 		const versionInfo = versionRow.createEl("div", { cls: "setting-item-info" });
 		versionInfo.createEl("div", { cls: "setting-item-name", text: "Current version" });
+
+		// Build detailed version description
+		const manifest = this.plugin.manifest as any;
 		const channelLabel = this.plugin.settings.updateChannel === "dev" ? " (dev channel)" : " (stable)";
+		let versionDesc = `${this.plugin.manifest.version}${channelLabel}`;
+
+		if (manifest.commitHash) {
+			const shortHash = manifest.commitHash.slice(0, 7);
+			versionDesc += ` · ${shortHash}`;
+		}
+		if (manifest.buildDate) {
+			const buildDate = new Date(manifest.buildDate).toLocaleDateString();
+			versionDesc += ` · ${buildDate}`;
+		}
+
 		versionInfo.createEl("div", {
 			cls: "setting-item-description",
-			text: `${this.plugin.manifest.version}${channelLabel}`,
+			text: versionDesc,
 		});
+
 		const btnControl = versionRow.createEl("div", { cls: "setting-item-control" });
 		const checkBtn = btnControl.createEl("button", { text: "Check Now", cls: "mod-cta" });
 		checkBtn.addEventListener("click", async () => {
