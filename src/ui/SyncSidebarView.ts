@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, WorkspaceLeaf } from "obsidian";
 import type SyncItPlugin from "../main";
 import type {
 	FileEntity,
@@ -71,6 +71,8 @@ export class SyncSidebarView extends ItemView {
 		container.style.display = "flex";
 		container.style.flexDirection = "column";
 		container.style.height = "100%";
+		container.style.minWidth = "0";
+		container.style.overflowX = "hidden";
 
 		// Header
 		const header = container.createDiv("syncit-sidebar-header");
@@ -79,6 +81,7 @@ export class SyncSidebarView extends ItemView {
 		header.style.display = "flex";
 		header.style.alignItems = "center";
 		header.style.gap = "8px";
+		header.style.minWidth = "0";
 
 		const icon = header.createEl("span");
 		icon.setText("🔄");
@@ -89,6 +92,15 @@ export class SyncSidebarView extends ItemView {
 		title.style.margin = "0";
 		title.style.fontSize = "1.1em";
 		title.style.fontWeight = "600";
+		title.style.flex = "1";
+		title.style.minWidth = "0";
+
+		this.settingsBtn = header.createEl("button", { attr: { "aria-label": "Open SyncIt settings", "title": "Settings" } });
+		this.settingsBtn.setText("⚙");
+		this.settingsBtn.style.flex = "0 0 auto";
+		this.settingsBtn.style.fontSize = "1.1em";
+		this.settingsBtn.style.padding = "2px 6px";
+		this.settingsBtn.addEventListener("click", () => this.openSettings());
 
 		// Status section (always visible)
 		const statusSection = container.createDiv("syncit-sidebar-status");
@@ -111,43 +123,27 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
-		// Actions section — 2x2 grid for compact layout
+		// Actions section — single-column layout so narrow sidebars never overflow.
 		const actionsSection = container.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
-		actionsSection.style.display = "grid";
-		actionsSection.style.gridTemplateColumns = "1fr 1fr";
+		actionsSection.style.display = "flex";
+		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
 
-		const syncControl = actionsSection.createDiv();
-		syncControl.style.display = "flex";
-		syncControl.style.gap = "4px";
-		this.syncBtn = syncControl.createEl("button", { text: this.modeLabel(this.selectedMode) });
-		this.syncBtn.style.flex = "1";
+		this.syncBtn = actionsSection.createEl("button", { text: "Sync" });
+		this.syncBtn.style.width = "100%";
+		this.syncBtn.style.boxSizing = "border-box";
 		this.syncBtn.addClass("mod-cta");
-		this.syncBtn.addEventListener("click", () => this.plugin.performSync(this.selectedMode));
-		const modeSelect = syncControl.createEl("select");
-		modeSelect.setAttribute("aria-label", "Sync direction");
-		for (const [value, label] of [["two-way", "Two-way"], ["upload-only", "Upload only"], ["download-only", "Download only"]] as const) {
-			modeSelect.createEl("option", { value, text: label });
-		}
-		modeSelect.value = this.selectedMode;
-		modeSelect.addEventListener("change", () => {
-			this.selectedMode = modeSelect.value as ReconciliationMode;
-			this.syncBtn.setText(this.modeLabel(this.selectedMode));
-		});
+		this.syncBtn.addEventListener("click", (event) => this.openSyncMenu(event));
 
 		const dryRunBtn = actionsSection.createEl("button", { text: "Dry Run" });
+		dryRunBtn.style.width = "100%";
+		dryRunBtn.style.boxSizing = "border-box";
 		dryRunBtn.addEventListener("click", () => this.plugin.performDryRun());
 
-		this.settingsBtn = actionsSection.createEl("button", { text: "Settings" });
-		this.settingsBtn.addEventListener("click", () => {
-			// @ts-ignore
-			this.app.setting.open();
-			// @ts-ignore
-			this.app.setting.openTabById(this.plugin.manifest.id);
-		});
-
 		const rebuildBtn = actionsSection.createEl("button", { text: "Rebuild Index" });
+		rebuildBtn.style.width = "100%";
+		rebuildBtn.style.boxSizing = "border-box";
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		// Spacer
@@ -192,11 +188,21 @@ export class SyncSidebarView extends ItemView {
 
 	updateSyncMode() {
 		this.selectedMode = this.plugin.settings.syncDirection;
-		this.syncBtn?.setText(this.modeLabel(this.selectedMode));
 	}
 
-	private modeLabel(mode: ReconciliationMode): string {
-		return mode === "upload-only" ? "↑ Upload to server" : mode === "download-only" ? "↓ Download from server" : "↕ Two-way sync";
+	private openSyncMenu(event: MouseEvent) {
+		const menu = new Menu();
+		menu.addItem(item => item.setTitle("Two-way").setIcon("refresh-cw").setChecked(this.selectedMode === "two-way").onClick(() => this.plugin.performSync("two-way")));
+		menu.addItem(item => item.setTitle("Upload only").setIcon("upload").setChecked(this.selectedMode === "upload-only").onClick(() => this.plugin.performSync("upload-only")));
+		menu.addItem(item => item.setTitle("Download only").setIcon("download").setChecked(this.selectedMode === "download-only").onClick(() => this.plugin.performSync("download-only")));
+		menu.showAtMouseEvent(event);
+	}
+
+	private openSettings() {
+		// @ts-ignore Obsidian's settings API is not exposed in the public typings.
+		this.app.setting.open();
+		// @ts-ignore
+		this.app.setting.openTabById(this.plugin.manifest.id);
 	}
 
 	// ─── Progress API ───
@@ -421,7 +427,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI(); // removes bar, stats, cancel — log stays
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText(this.modeLabel(this.selectedMode));
+		this.syncBtn.setText("Sync");
 		this._showCompletionSummary(result, elapsed);
 	}
 
@@ -440,7 +446,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeProgressUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText(this.modeLabel(this.selectedMode));
+		this.syncBtn.setText("Sync");
 
 		// Show summary cards
 		const container = this.containerEl.children[1] as HTMLElement;
@@ -519,7 +525,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText(this.modeLabel(this.selectedMode));
+		this.syncBtn.setText("Sync");
 	}
 
 	setError(message: string) {
@@ -535,7 +541,7 @@ export class SyncSidebarView extends ItemView {
 		this._removeCompletionUI();
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
-		this.syncBtn.setText(this.modeLabel(this.selectedMode));
+		this.syncBtn.setText("Sync");
 	}
 
 	// ─── Idle State ───
@@ -550,7 +556,7 @@ export class SyncSidebarView extends ItemView {
 	setSyncing(syncing: boolean) {
 		if (!syncing && !this.isSyncing) {
 			(this.syncBtn as HTMLButtonElement).disabled = false;
-			this.syncBtn.setText(this.modeLabel(this.selectedMode));
+			this.syncBtn.setText("Sync");
 		}
 	}
 
