@@ -230,7 +230,7 @@ export class SyncSidebarView extends ItemView {
 		this.selectedMode = this.plugin.settings.syncDirection;
 	}
 
-
+	private openSettings() {
 		// @ts-ignore Obsidian's settings API is not exposed in the public typings.
 		this.app.setting.open();
 		// @ts-ignore
