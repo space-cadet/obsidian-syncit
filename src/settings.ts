@@ -1,6 +1,22 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type SyncItPlugin from "./main";
 
+type SettingsSection = {
+	id: string;
+	title: string;
+	description?: string;
+};
+
+const SECTIONS: SettingsSection[] = [
+	{ id: "sync-behavior", title: "Sync Behavior" },
+	{ id: "connection", title: "WebDAV Connection" },
+	{ id: "safety", title: "Safety" },
+	{ id: "performance", title: "Performance" },
+	{ id: "logging", title: "Logging" },
+	{ id: "updates", title: "Updates" },
+	{ id: "actions", title: "Actions" },
+];
+
 export class SyncItSettingTab extends PluginSettingTab {
 	plugin: SyncItPlugin;
 
@@ -13,13 +29,88 @@ export class SyncItSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
+		// ── Title ──
 		containerEl.createEl("h2", { text: "SyncIt Settings" });
 		containerEl.createEl("p", {
 			text: "Configure the server once, then choose how each sync should move files.",
 			cls: "setting-item-description",
 		});
 
-		containerEl.createEl("h3", { text: "Sync behavior" });
+		// ── Table of Contents ──
+		this.renderToC(containerEl);
+
+		// ── Sections ──
+		this.renderSyncBehavior(containerEl);
+		this.renderConnection(containerEl);
+		this.renderSafety(containerEl);
+		this.renderPerformance(containerEl);
+		this.renderLogging(containerEl);
+		this.renderUpdates(containerEl);
+		this.renderActions(containerEl);
+	}
+
+	// ═══════════════════════════════════════
+	//  Table of Contents
+	// ═══════════════════════════════════════
+
+	private renderToC(containerEl: HTMLElement) {
+		const toc = containerEl.createEl("nav", { cls: "syncit-settings-toc" });
+		toc.style.position = "sticky";
+		toc.style.top = "0";
+		toc.style.background = "var(--background-primary)";
+		toc.style.padding = "12px 16px";
+		toc.style.marginBottom = "16px";
+		toc.style.border = "1px solid var(--background-modifier-border)";
+		toc.style.borderRadius = "8px";
+		toc.style.zIndex = "10";
+
+		const tocTitle = toc.createEl("div");
+		tocTitle.style.fontWeight = "600";
+		tocTitle.style.fontSize = "0.9em";
+		tocTitle.style.marginBottom = "8px";
+		tocTitle.setText("Jump to section");
+
+		const tocList = toc.createEl("div");
+		tocList.style.display = "flex";
+		tocList.style.flexWrap = "wrap";
+		tocList.style.gap = "6px";
+
+		for (const section of SECTIONS) {
+			const link = tocList.createEl("a", {
+				href: `#${section.id}`,
+				text: section.title,
+			});
+			link.style.padding = "3px 10px";
+			link.style.fontSize = "0.8em";
+			link.style.borderRadius = "4px";
+			link.style.background = "var(--background-primary-alt)";
+			link.style.color = "var(--text-muted)";
+			link.style.textDecoration = "none";
+			link.style.border = "1px solid var(--background-modifier-border)";
+			link.style.transition = "all 0.15s ease";
+
+			link.addEventListener("mouseenter", () => {
+				link.style.background = "var(--interactive-accent)";
+				link.style.color = "var(--text-on-accent)";
+			});
+			link.addEventListener("mouseleave", () => {
+				link.style.background = "var(--background-primary-alt)";
+				link.style.color = "var(--text-muted)";
+			});
+			link.addEventListener("click", (e) => {
+				e.preventDefault();
+				const target = containerEl.querySelector(`#${section.id}`);
+				target?.scrollIntoView({ behavior: "smooth", block: "start" });
+			});
+		}
+	}
+
+	// ═══════════════════════════════════════
+	//  Sync Behavior
+	// ═══════════════════════════════════════
+
+	private renderSyncBehavior(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "sync-behavior", "Sync Behavior");
 
 		new Setting(containerEl)
 			.setName("Default sync direction")
@@ -53,7 +144,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 					});
 			});
 
-		// Orphan file policies
 		new Setting(containerEl)
 			.setName("When downloading, local files not on remote")
 			.setDesc("What to do with local files that don't exist on the server during download-only sync.")
@@ -83,10 +173,15 @@ export class SyncItSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
+	}
 
-		containerEl.createEl("h3", { text: "WebDAV connection" });
+	// ═══════════════════════════════════════
+	//  WebDAV Connection
+	// ═══════════════════════════════════════
 
-		// WebDAV URL
+	private renderConnection(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "connection", "WebDAV Connection");
+
 		new Setting(containerEl)
 			.setName("WebDAV URL")
 			.setDesc("Your WebDAV server URL (e.g., https://nextcloud.example.com/remote.php/dav/files/username/)")
@@ -100,7 +195,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// Username
 		new Setting(containerEl)
 			.setName("Username")
 			.setDesc("WebDAV username")
@@ -114,7 +208,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// Password
 		new Setting(containerEl)
 			.setName("Password")
 			.setDesc("WebDAV password")
@@ -129,7 +222,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 				text.inputEl.type = "password";
 			});
 
-		// Remote base directory
 		new Setting(containerEl)
 			.setName("Remote base directory")
 			.setDesc("Directory on the WebDAV server to store synced files (leave empty for vault name)")
@@ -143,7 +235,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// Test connection button
 		new Setting(containerEl)
 			.setName("Test connection")
 			.setDesc("Verify WebDAV connection")
@@ -164,7 +255,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// Exclude patterns
 		new Setting(containerEl)
 			.setName("Exclude patterns")
 			.setDesc("Files/directories to exclude from sync (one per line)")
@@ -181,9 +271,14 @@ export class SyncItSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 5;
 			});
+	}
 
-		// Safety settings
-		containerEl.createEl("h3", { text: "Safety" });
+	// ═══════════════════════════════════════
+	//  Safety
+	// ═══════════════════════════════════════
+
+	private renderSafety(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "safety", "Safety");
 
 		new Setting(containerEl)
 			.setName("Move to trash")
@@ -196,9 +291,14 @@ export class SyncItSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+	}
 
-		// Performance settings
-		containerEl.createEl("h3", { text: "Performance" });
+	// ═══════════════════════════════════════
+	//  Performance
+	// ═══════════════════════════════════════
+
+	private renderPerformance(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "performance", "Performance");
 
 		new Setting(containerEl)
 			.setName("Concurrency limit")
@@ -213,9 +313,97 @@ export class SyncItSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+	}
 
-		// Updater settings
-		containerEl.createEl("h3", { text: "Updates" });
+	// ═══════════════════════════════════════
+	//  Logging
+	// ═══════════════════════════════════════
+
+	private renderLogging(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "logging", "Logging");
+
+		containerEl.createEl("p", {
+			text: "Logs are stored in .syncit/log.jsonl in your vault. Optionally keep a backup in the plugin directory.",
+			cls: "setting-item-description",
+		});
+
+		new Setting(containerEl)
+			.setName("Log level")
+			.setDesc("How much detail to record. ERROR = failures only, DEBUG = everything.")
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.addClass("syncit-dropdown");
+				dropdown
+					.addOption("ERROR", "ERROR — Failures only")
+					.addOption("WARNING", "WARNING — + skipped files, suspicious conditions")
+					.addOption("INFO", "INFO — + per-file operations (default)")
+					.addOption("DEBUG", "DEBUG — + dry-run details, hashes, decisions")
+					.setValue(this.plugin.settings.logLevel)
+					.onChange(async (value) => {
+						this.plugin.settings.logLevel = value as "ERROR" | "WARNING" | "INFO" | "DEBUG";
+						await this.plugin.saveSettings();
+						this.plugin.logger?.updateSettings({ minLevel: this.plugin.settings.logLevel });
+					});
+			});
+
+		new Setting(containerEl)
+			.setName("Max log age")
+			.setDesc("Automatically purge log entries older than this many days.")
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 90, 1)
+					.setValue(this.plugin.settings.logMaxAgeDays)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.logMaxAgeDays = value;
+						await this.plugin.saveSettings();
+						this.plugin.logger?.updateSettings({ maxAgeDays: value });
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Max log size")
+			.setDesc("Rotate log when it exceeds this size in MB. Older entries are purged first.")
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 100, 1)
+					.setValue(this.plugin.settings.logMaxSizeMB)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.logMaxSizeMB = value;
+						await this.plugin.saveSettings();
+						this.plugin.logger?.updateSettings({ maxSizeMB: value });
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Backup log in plugin directory")
+			.setDesc("Keep a copy of the log in .obsidian/plugins/obsidian-syncit/ (survives vault sync, removed on uninstall)")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.logBackupInPluginDir)
+					.onChange(async (value) => {
+						this.plugin.settings.logBackupInPluginDir = value;
+						await this.plugin.saveSettings();
+						this.plugin.logger?.updateSettings({ keepBackup: value });
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Open log viewer")
+			.setDesc("View sync history in the sidebar")
+			.addButton((button) =>
+				button
+					.setButtonText("Open Log Viewer")
+					.onClick(() => this.plugin.openLogViewer())
+			);
+	}
+
+	// ═══════════════════════════════════════
+	//  Updates
+	// ═══════════════════════════════════════
+
+	private renderUpdates(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "updates", "Updates");
 
 		new Setting(containerEl)
 			.setName("Check for updates on startup")
@@ -257,28 +445,25 @@ export class SyncItSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Version info + manual check
-		containerEl.createEl("h3", { text: "Version" });
+		// Version info
+		this.sectionHeader(containerEl, "version-info", "Version", "h4");
 
 		const versionRow = containerEl.createEl("div", { cls: "setting-item" });
 		const versionInfo = versionRow.createEl("div", { cls: "setting-item-info" });
 		versionInfo.createEl("div", { cls: "setting-item-name", text: "Current version" });
 
-		// Build detailed version description
 		const manifest = this.plugin.manifest as any;
 		const channelLabel = this.plugin.settings.updateChannel === "dev" ? " (dev channel)" : " (stable)";
 		let versionDesc = `${this.plugin.manifest.version}${channelLabel}`;
 
 		if (manifest.commitHash) {
-			const shortHash = manifest.commitHash.slice(0, 7);
-			versionDesc += ` · ${shortHash}`;
+			versionDesc += ` · ${manifest.commitHash.slice(0, 7)}`;
 		}
 		if (manifest.buildBranch) {
 			versionDesc += ` · branch: ${manifest.buildBranch}`;
 		}
 		if (manifest.buildDate) {
-			const buildDate = new Date(manifest.buildDate).toLocaleDateString();
-			versionDesc += ` · ${buildDate}`;
+			versionDesc += ` · ${new Date(manifest.buildDate).toLocaleDateString()}`;
 		}
 
 		versionInfo.createEl("div", {
@@ -298,8 +483,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.lastUpdateCheck > 0) {
 			const lastCheck = containerEl.createEl("p", { cls: "setting-item-description" });
-			const date = new Date(this.plugin.settings.lastUpdateCheck).toLocaleString();
-			lastCheck.textContent = `Last checked: ${date}`;
+			lastCheck.textContent = `Last checked: ${new Date(this.plugin.settings.lastUpdateCheck).toLocaleString()}`;
 		}
 
 		new Setting(containerEl)
@@ -308,9 +492,14 @@ export class SyncItSettingTab extends PluginSettingTab {
 			.addButton((button) => button
 				.setButtonText("Browse builds")
 				.onClick(() => this.plugin.showAvailableBuilds()));
+	}
 
-		// Sync button
-		containerEl.createEl("h3", { text: "Actions" });
+	// ═══════════════════════════════════════
+	//  Actions
+	// ═══════════════════════════════════════
+
+	private renderActions(containerEl: HTMLElement) {
+		this.sectionHeader(containerEl, "actions", "Actions");
 
 		new Setting(containerEl)
 			.setName("Sync now")
@@ -323,5 +512,21 @@ export class SyncItSettingTab extends PluginSettingTab {
 						this.plugin.performSync();
 					})
 			);
+	}
+
+	// ═══════════════════════════════════════
+	//  Helpers
+	// ═══════════════════════════════════════
+
+	private sectionHeader(
+		containerEl: HTMLElement,
+		id: string,
+		title: string,
+		tag: "h3" | "h4" = "h3",
+	) {
+		const el = containerEl.createEl(tag, { text: title });
+		el.id = id;
+		el.style.scrollMarginTop = "60px"; // space for sticky ToC
+		return el;
 	}
 }

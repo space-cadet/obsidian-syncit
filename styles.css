@@ -109,3 +109,79 @@
 	color: var(--text-normal);
 	padding: 6px 8px;
 }
+
+/* ═══════════════════════════════════════
+   Log Viewer
+   ═══════════════════════════════════════ */
+
+.syncit-log-viewer {
+	font-size: var(--font-ui-small);
+}
+
+.syncit-log-header {
+	background: var(--background-primary-alt);
+}
+
+.syncit-log-filters {
+	background: var(--background-primary);
+}
+
+.syncit-log-search {
+	background: var(--background-primary);
+}
+
+.syncit-log-search-input {
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 4px 10px;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.syncit-log-search-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.syncit-log-list {
+	background: var(--background-primary);
+}
+
+.syncit-log-session {
+	background: var(--background-primary);
+}
+
+.syncit-log-session-header {
+	background: var(--background-primary-alt);
+	transition: background 0.15s ease;
+}
+
+.syncit-log-session-header:hover {
+	background: var(--background-modifier-hover);
+}
+
+.syncit-log-entry:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* ═══════════════════════════════════════
+   Settings ToC
+   ═══════════════════════════════════════ */
+
+.syncit-settings-toc a:hover {
+	text-decoration: none;
+}
+
+/* Smooth scroll offset for sticky header */
+#sync-behavior,
+#connection,
+#safety,
+#performance,
+#logging,
+#updates,
+#actions,
+#version-info {
+	scroll-margin-top: 70px;
+}

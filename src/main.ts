@@ -13,6 +13,8 @@ import { SyncPlanBuilder } from "./sync/SyncPlan";
 import { SyncIndexManager, type IndexStorage } from "./sync/SyncIndex";
 import { AvailableBuildsModal, PluginUpdater, UpdateAvailableModal } from "./updater/PluginUpdater";
 import { SyncSidebarView, SYNC_SIDEBAR_VIEW_TYPE } from "./ui/SyncSidebarView";
+import { SyncLogger } from "./logging/SyncLogger";
+import { LogViewerView, LOG_VIEWER_VIEW_TYPE } from "./ui/LogViewerView";
 
 export default class SyncItPlugin extends Plugin {
 	settings: SyncItSettings = DEFAULT_SETTINGS;
@@ -23,6 +25,7 @@ export default class SyncItPlugin extends Plugin {
 	private statusBarEl: HTMLSpanElement | null = null;
 	private _updater: PluginUpdater | null = null;
 	private _sidebarView: SyncSidebarView | null = null;
+	logger: SyncLogger | null = null;
 	private debugLogPath = `.obsidian/plugins/${this.manifest?.id ?? "obsidian-syncit"}/debug.log`;
 	private lastSavedServerConfig: {
 		webdavUrl: string;
@@ -36,19 +39,9 @@ export default class SyncItPlugin extends Plugin {
 		decisions: Record<string, ReconciliationDecision>;
 	} | null = null;
 
-	/** Append a line to the plugin debug log. */
+	/** Append a line to the plugin debug log. @deprecated Use logger instead */
 	private async _logDebug(level: string, message: string): Promise<void> {
-		try {
-			const path = this.debugLogPath;
-			const existing = await this.app.vault.adapter.exists(path)
-				? await this.app.vault.adapter.read(path)
-				: "";
-			const lines = existing.split("\n").slice(-499);
-			lines.push(`[${new Date().toISOString()}] [${level}] ${message}`);
-			await this.app.vault.adapter.write(path, lines.join("\n"));
-		} catch {
-			// Silently fail
-		}
+		await this.logger?.log(level as any, "legacy", message);
 	}
 
 	async onload() {
@@ -65,8 +58,25 @@ export default class SyncItPlugin extends Plugin {
 			await this._logDebug("WARN", `Temporary-file cleanup failed: ${String(error)}`);
 		}
 
-		// T12d: Set up sync index manager
+		// Initialize logger
+		const vaultBasePath = (this.app.vault.adapter as any).basePath ?? "";
 		const pluginDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+		this.logger = new SyncLogger({
+			vaultBasePath,
+			pluginDirPath: pluginDir,
+			storage: {
+				exists: (path) => this.app.vault.adapter.exists(path),
+				read: (path) => this.app.vault.adapter.read(path),
+				write: (path, data) => this.app.vault.adapter.write(path, data),
+				remove: (path) => this.app.vault.adapter.remove(path),
+			},
+			minLevel: this.settings.logLevel,
+			maxAgeDays: this.settings.logMaxAgeDays,
+			maxSizeMB: this.settings.logMaxSizeMB,
+			keepBackup: this.settings.logBackupInPluginDir,
+		});
+
+		// T12d: Set up sync index manager
 		const storage: IndexStorage = {
 			exists: (path) => this.app.vault.adapter.exists(path),
 			read: (path) => this.app.vault.adapter.read(path),
@@ -108,10 +118,22 @@ export default class SyncItPlugin extends Plugin {
 			callback: () => this.rebuildIndex(),
 		});
 
+		// Command: Open log viewer
+		this.addCommand({
+			id: "syncit-open-log-viewer",
+			name: "Open sync log viewer",
+			callback: () => this.openLogViewer(),
+		});
+
 		// Register sidebar view
 		this.registerView(SYNC_SIDEBAR_VIEW_TYPE, (leaf) => {
 			this._sidebarView = new SyncSidebarView(leaf, this);
 			return this._sidebarView;
+		});
+
+		// Register log viewer view
+		this.registerView(LOG_VIEWER_VIEW_TYPE, (leaf) => {
+			return new LogViewerView(leaf, this);
 		});
 
 		// Updater
@@ -236,6 +258,8 @@ export default class SyncItPlugin extends Plugin {
 		this.updateStatusBar("Syncing...");
 		this._sidebarView?.setSyncing(true);
 
+		await this.logger?.info("sync", "Sync started", { mode });
+
 		// T3a: Open sidebar to show progress
 		this.openSidebarView();
 		this._sidebarView?.setScanning();
@@ -307,6 +331,15 @@ export default class SyncItPlugin extends Plugin {
 
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 
+			await this.logger?.info("sync", "Sync plan built", {
+				uploads: plan.uploads.length,
+				downloads: plan.downloads.length,
+				deletes: plan.localDeletes.length + plan.remoteDeletes.length,
+				conflicts: plan.conflicts.length,
+				unchanged: plan.unchanged,
+				requiresReconciliation: plan.requiresReconciliation,
+			});
+
 			if (totalOps === 0) {
 				this._sidebarView?.finish({
 					uploaded: 0,
@@ -341,6 +374,17 @@ export default class SyncItPlugin extends Plugin {
 			if (result.conflicts > 0) messages.push(`${result.conflicts} conflicts resolved`);
 			if (result.errors.length > 0) messages.push(`${result.errors.length} errors`);
 
+			await this.logger?.info("sync", "Sync completed", {
+				uploaded: result.uploaded,
+				downloaded: result.downloaded,
+				deleted: result.deleted,
+				conflicts: result.conflicts,
+				skipped: result.skipped,
+				errors: result.errors.length,
+				uploadedBytes: result.uploadedBytes,
+				downloadedBytes: result.downloadedBytes,
+			});
+
 			const msg = messages.join(", ") || "Nothing to sync";
 			const fullResult = { ...result, message: msg };
 
@@ -373,6 +417,7 @@ export default class SyncItPlugin extends Plugin {
 			}
 		} catch (error) {
 			if (error instanceof SyncCancelledError) {
+				await this.logger?.warn("sync", "Sync cancelled by user");
 				new Notice("SyncIt: Sync cancelled");
 				this.updateStatusBar("Sync cancelled");
 				this._sidebarView?.setCancelled();
@@ -380,6 +425,7 @@ export default class SyncItPlugin extends Plugin {
 			}
 			console.error("SyncIt sync failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			await this.logger?.error("sync", "Sync failed", { error: errorMsg });
 			this._sidebarView?.setError(errorMsg);
 			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");
@@ -412,6 +458,8 @@ export default class SyncItPlugin extends Plugin {
 		this._sidebarView?.setScanning();
 		new Notice("SyncIt: Dry run started — previewing changes", 3000);
 
+		await this.logger?.info("sync", "Dry run started", { mode });
+
 		try {
 			if (!this.adapter || !this.scanner) {
 				this.adapter = new WebDAVAdapter();
@@ -431,33 +479,20 @@ export default class SyncItPlugin extends Plugin {
 			});
 			const index = await this.indexManager?.load(serverSignature) ?? null;
 
-			// DEBUG: Log index state
-			await this._logDebug("INFO", `DryRun signature=${serverSignature}`);
-			await this._logDebug("INFO", `DryRun index loaded=${index ? "YES" : "NO"}`);
-			if (index) {
-				const entryCount = Object.keys(index.files).length;
-				await this._logDebug("INFO", `DryRun index entries=${entryCount}`);
-			} else {
-				// Try to read the raw index file to show stored signature
-				try {
-					const rawPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/sync-index.json`;
-					if (await this.app.vault.adapter.exists(rawPath)) {
-						const raw = await this.app.vault.adapter.read(rawPath);
-						const parsed = JSON.parse(raw);
-						await this._logDebug("INFO", `DryRun index file signature=${parsed.serverSignature}`);
-					} else {
-						await this._logDebug("INFO", "DryRun index file not found on disk");
-					}
-				} catch (e) {
-					await this._logDebug("INFO", "DryRun failed to read index file");
-				}
-			}
+		// DEBUG: Log index state
+			await this.logger?.debug("sync", "Dry run index state", {
+				indexLoaded: !!index,
+				entryCount: index ? Object.keys(index.files).length : 0,
+			});
 
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// DEBUG: Log scan results
-			await this._logDebug("INFO", `DryRun local=${localFiles.length} remote=${remoteFiles.length}`);
+			await this.logger?.debug("sync", "Dry run scan complete", {
+				localFiles: localFiles.length,
+				remoteFiles: remoteFiles.length,
+			});
 
 			const plan = builder.buildPlan(
 				localFiles,
@@ -473,8 +508,14 @@ export default class SyncItPlugin extends Plugin {
 				resolvedPlan = builder.applyReconciliationDecisions(plan, {}, mode);
 			}
 
-			// DEBUG: Log plan summary
-			await this._logDebug("INFO", `DryRun plan: uploads=${resolvedPlan.uploads.length} downloads=${resolvedPlan.downloads.length} deletes=${resolvedPlan.remoteDeletes.length} conflicts=${resolvedPlan.conflicts.length} unchanged=${resolvedPlan.unchanged}`);
+		// DEBUG: Log plan summary
+			await this.logger?.debug("sync", "Dry run plan summary", {
+				uploads: resolvedPlan.uploads.length,
+				downloads: resolvedPlan.downloads.length,
+				deletes: resolvedPlan.remoteDeletes.length,
+				conflicts: resolvedPlan.conflicts.length,
+				unchanged: resolvedPlan.unchanged,
+			});
 
 			this._sidebarView?.setPlan(resolvedPlan);
 
@@ -541,6 +582,7 @@ export default class SyncItPlugin extends Plugin {
 		} catch (error) {
 			console.error("SyncIt dry run failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			await this.logger?.error("sync", "Dry run failed", { error: errorMsg });
 			this._sidebarView?.setError(errorMsg);
 			new Notice(`SyncIt: Dry run failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Dry run failed");
@@ -656,6 +698,22 @@ export default class SyncItPlugin extends Plugin {
 		const leaf = workspace.getRightLeaf(false);
 		if (leaf) {
 			await leaf.setViewState({ type: SYNC_SIDEBAR_VIEW_TYPE, active: true });
+			workspace.revealLeaf(leaf);
+		}
+	}
+
+	async openLogViewer() {
+		const { workspace } = this.app;
+		const leaves = workspace.getLeavesOfType(LOG_VIEWER_VIEW_TYPE);
+
+		if (leaves.length > 0) {
+			workspace.revealLeaf(leaves[0]);
+			return;
+		}
+
+		const leaf = workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: LOG_VIEWER_VIEW_TYPE, active: true });
 			workspace.revealLeaf(leaf);
 		}
 	}

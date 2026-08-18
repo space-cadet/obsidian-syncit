@@ -15,6 +15,11 @@ export interface SyncItSettings {
 	autoUpdate: boolean;
 	lastUpdateCheck: number;
 	concurrencyLimit: number;
+	// Logging
+	logLevel: "ERROR" | "WARNING" | "INFO" | "DEBUG";
+	logMaxAgeDays: number;
+	logMaxSizeMB: number;
+	logBackupInPluginDir: boolean;
 	syncDirection: ReconciliationMode;
 	reconciliationPolicy: "follow-direction" | "prompt";
 	downloadOrphanPolicy: "keep" | "delete-local";
@@ -39,6 +44,10 @@ export const DEFAULT_SETTINGS: SyncItSettings = {
 	autoUpdate: false,
 	lastUpdateCheck: 0,
 	concurrencyLimit: 3,
+	logLevel: "INFO",
+	logMaxAgeDays: 30,
+	logMaxSizeMB: 10,
+	logBackupInPluginDir: false,
 	syncDirection: "two-way",
 	reconciliationPolicy: "follow-direction",
 	downloadOrphanPolicy: "keep",
