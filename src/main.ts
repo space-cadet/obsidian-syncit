@@ -19,6 +19,12 @@ export default class SyncItPlugin extends Plugin {
 	private _updater: PluginUpdater | null = null;
 	private _sidebarView: SyncSidebarView | null = null;
 	private debugLogPath = `.obsidian/plugins/${this.manifest?.id ?? "obsidian-syncit"}/debug.log`;
+	private lastSavedServerConfig: {
+		webdavUrl: string;
+		webdavUsername: string;
+		webdavPassword: string;
+		remoteBaseDir: string;
+	} | null = null;
 
 	/** Append a line to the plugin debug log. */
 	private async _logDebug(level: string, message: string): Promise<void> {
@@ -39,9 +45,15 @@ export default class SyncItPlugin extends Plugin {
 		console.info(`Loading SyncIt plugin`);
 
 		await this.loadSettings();
+		this.lastSavedServerConfig = this.getServerConfigSnapshot();
 
 		this.adapter = new WebDAVAdapter();
 		this.scanner = new VaultScanner(this.app, this.settings);
+		try {
+			await this.scanner.cleanupTempFiles();
+		} catch (error) {
+			await this._logDebug("WARN", `Temporary-file cleanup failed: ${String(error)}`);
+		}
 
 		// T12d: Set up sync index manager
 		const pluginDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
@@ -133,24 +145,33 @@ export default class SyncItPlugin extends Plugin {
 	}
 
 	async saveSettings() {
-		// Capture server config before save for comparison
-		const oldUrl = this.settings.webdavUrl;
-		const oldUsername = this.settings.webdavUsername;
-		const oldPassword = this.settings.webdavPassword;
-		const oldBaseDir = this.settings.remoteBaseDir;
-
 		await this.saveData(this.settings);
 
-		// Only invalidate index if server-related settings actually changed
+		// Settings controls mutate this.settings before calling saveSettings().
+		// Compare against the last successfully persisted snapshot instead of
+		// treating the already-mutated object as the old value.
+		const currentConfig = this.getServerConfigSnapshot();
+		const previousConfig = this.lastSavedServerConfig;
 		const serverConfigChanged =
-			this.settings.webdavUrl !== oldUrl ||
-			this.settings.webdavUsername !== oldUsername ||
-			this.settings.webdavPassword !== oldPassword ||
-			this.settings.remoteBaseDir !== oldBaseDir;
+			!previousConfig ||
+			currentConfig.webdavUrl !== previousConfig.webdavUrl ||
+			currentConfig.webdavUsername !== previousConfig.webdavUsername ||
+			currentConfig.webdavPassword !== previousConfig.webdavPassword ||
+			currentConfig.remoteBaseDir !== previousConfig.remoteBaseDir;
 
 		if (serverConfigChanged) {
 			await this.indexManager?.clear();
 		}
+		this.lastSavedServerConfig = currentConfig;
+	}
+
+	private getServerConfigSnapshot() {
+		return {
+			webdavUrl: this.settings.webdavUrl,
+			webdavUsername: this.settings.webdavUsername,
+			webdavPassword: this.settings.webdavPassword,
+			remoteBaseDir: this.settings.remoteBaseDir,
+		};
 	}
 
 	/** Cancel an in-progress sync. Called from sidebar cancel button. */
@@ -208,6 +229,16 @@ export default class SyncItPlugin extends Plugin {
 			const plan = builder.buildPlan(localFiles, remoteFiles);
 			this._sidebarView?.setPlan(plan);
 
+			if (plan.requiresReconciliation) {
+				this._sidebarView?.setReconciliationRequired(plan);
+				new Notice(
+					`SyncIt: ${plan.reconciliation.length} file(s) need reconciliation before syncing`,
+					10000,
+				);
+				this.updateStatusBar("Reconciliation required");
+				return;
+			}
+
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			if (totalOps === 0) {
@@ -252,8 +283,9 @@ export default class SyncItPlugin extends Plugin {
 			const timeStr = new Date().toLocaleTimeString();
 			this.updateStatusBar(`Last sync: ${timeStr}`);
 
-			// T12d: Update sync index after sync with FRESH scans (not stale Phase 1 data)
-			if (this.indexManager && this.adapter && this.scanner) {
+			// T12d: Update sync index only after a fully successful sync. A
+			// partial result must remain retryable on the next run.
+			if (result.errors.length === 0 && this.indexManager && this.adapter && this.scanner) {
 				try {
 					// Fresh scan of current state on both sides
 					const { localFiles: freshLocals, remoteFiles: freshRemotes } =
@@ -367,6 +399,16 @@ export default class SyncItPlugin extends Plugin {
 
 			this._sidebarView?.setPlan(plan);
 
+			if (plan.requiresReconciliation) {
+				this._sidebarView?.setReconciliationRequired(plan);
+				new Notice(
+					`SyncIt: Dry run found ${plan.reconciliation.length} file(s) needing reconciliation`,
+					10000,
+				);
+				this.updateStatusBar("Reconciliation required");
+				return;
+			}
+
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			if (totalOps === 0) {
@@ -453,11 +495,17 @@ export default class SyncItPlugin extends Plugin {
 
 	/** Rebuild the sync index from a fresh scan — no transfers. */
 	async rebuildIndex() {
+		if (this.isSyncing) {
+			new Notice("SyncIt: Another sync operation is already in progress");
+			return;
+		}
+
 		if (!this.settings.webdavUrl) {
 			new Notice("SyncIt: Please configure WebDAV settings first");
 			return;
 		}
 
+		this.isSyncing = true;
 		new Notice("SyncIt: Rebuilding index...", 2000);
 		this.updateStatusBar("Rebuilding index...");
 
@@ -503,6 +551,7 @@ export default class SyncItPlugin extends Plugin {
 			new Notice(`SyncIt: Index rebuild failed — ${msg}`, 6000);
 			this.updateStatusBar("Index rebuild failed");
 		} finally {
+			this.isSyncing = false;
 			if (this.adapter) {
 				await this.adapter.disconnect();
 			}

@@ -57,7 +57,14 @@ export class SyncIndexManager {
 	 * or server signature mismatch.
 	 */
 	async load(expectedSignature: string): Promise<SyncIndex | null> {
-		if (this.index) return this.index;
+		if (this.index) {
+			if (this.index.serverSignature === expectedSignature) {
+				return this.index;
+			}
+			// Settings or the active server changed after the cache was loaded.
+			// Never reuse state belonging to another server configuration.
+			this.index = null;
+		}
 
 		try {
 			const path = `${this.dataDir}/${INDEX_FILENAME}`;
@@ -69,6 +76,7 @@ export class SyncIndexManager {
 
 			if (parsed.serverSignature !== expectedSignature) {
 				console.info("SyncIt: Server signature changed, invalidating sync index");
+				this.index = null;
 				return null;
 			}
 
@@ -84,10 +92,10 @@ export class SyncIndexManager {
 	 * Save the index to disk.
 	 */
 	async save(index: SyncIndex): Promise<void> {
-		this.index = index;
 		try {
 			const path = `${this.dataDir}/${INDEX_FILENAME}`;
 			await this.storage.write(path, JSON.stringify(index, null, 2));
+			this.index = index;
 		} catch (err) {
 			console.error("SyncIt: Failed to save sync index:", err);
 		}

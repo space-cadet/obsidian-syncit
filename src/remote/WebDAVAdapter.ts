@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import type { WebDAVConfig, FileEntity } from "../types";
+import { createSyncitTempPath, isSyncitTempPath } from "../sync/AtomicWrite";
 
 /**
  * WebDAV storage adapter using Obsidian's requestUrl.
@@ -94,6 +95,7 @@ export class WebDAVAdapter {
 
 				const path = this.hrefToPath(item.href);
 				if (!path) continue;
+				if (isSyncitTempPath(path)) continue;
 
 				// Check if it's a directory (no content length, or ends with /)
 				const isDir = path.endsWith("/") || item.contentLength === undefined;
@@ -130,6 +132,7 @@ export class WebDAVAdapter {
 
 			const path = this.hrefToPath(item.href);
 			if (!path) continue;
+			if (isSyncitTempPath(path)) continue;
 
 			// Skip directories (they end with / or have no content length)
 			if (path.endsWith("/")) continue;
@@ -179,11 +182,20 @@ export class WebDAVAdapter {
 			}
 		}
 
-		if (this.isAborted()) throw new SyncCancelledError();
-		await this.request("PUT", fullPath, {
-			body: content,
-			contentType: "text/markdown",
-		});
+		const tempPath = createSyncitTempPath(fullPath);
+		try {
+			if (this.isAborted()) throw new SyncCancelledError();
+			await this.request("PUT", tempPath, {
+				body: content,
+				contentType: "text/markdown",
+			});
+
+			if (this.isAborted()) throw new SyncCancelledError();
+			await this.move(tempPath, fullPath);
+		} catch (error) {
+			await this.removeTempFile(tempPath);
+			throw error;
+		}
 	}
 
 	/**
@@ -297,6 +309,23 @@ export class WebDAVAdapter {
 				}
 			}
 			throw err;
+		}
+	}
+
+	private async move(sourcePath: string, destinationPath: string): Promise<void> {
+		await this.request("MOVE", sourcePath, {
+			headers: {
+				Destination: this.baseUrl + destinationPath,
+				Overwrite: "T",
+			},
+		});
+	}
+
+	private async removeTempFile(path: string): Promise<void> {
+		try {
+			await this.request("DELETE", path);
+		} catch {
+			// Preserve the original PUT/MOVE error. The next sync ignores temp paths.
 		}
 	}
 

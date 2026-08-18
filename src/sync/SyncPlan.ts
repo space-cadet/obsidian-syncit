@@ -41,6 +41,8 @@ export class SyncPlanBuilder {
 			localDeletes: [],
 			remoteDeletes: [],
 			conflicts: [],
+			reconciliation: [],
+			requiresReconciliation: false,
 			unchanged: 0,
 			uploadSize: 0,
 			downloadSize: 0,
@@ -50,22 +52,38 @@ export class SyncPlanBuilder {
 		for (const local of localFiles) {
 			const remote = remoteMap.get(local.path);
 			if (!remote) {
-				// File exists locally but not remotely
-				// Check index: was it previously synced? If yes, it was deleted remotely
-				if (this.index && this.index.files[local.path]) {
-					// Previously existed on both sides, now missing remotely
-					// → local wins: upload it (or delete from local if that's the policy)
-					plan.uploads.push(local);
-					plan.uploadSize += local.size;
+				if (!this.index) {
+					plan.reconciliation.push({
+						path: local.path,
+						reason: "no-baseline-local-only",
+						local,
+					});
+				} else if (this.index.files[local.path]) {
+					// A previously synced path is missing remotely. Do not assume local wins.
+					plan.reconciliation.push({
+						path: local.path,
+						reason: "possible-remote-deletion",
+						local,
+					});
 				} else {
-					// Never synced before → new file, upload
+					// A path not present in a valid local baseline is a new local file.
 					plan.uploads.push(local);
 					plan.uploadSize += local.size;
 				}
+				continue;
 			} else if (this.indexManager?.isUnchanged(local, remote, this.index ?? null)) {
 				// T12d: Both sides match the index → skip
 				plan.unchanged++;
 			} else if (local.mtime !== remote.mtime || local.size !== remote.size) {
+				if (!this.index) {
+					plan.reconciliation.push({
+						path: local.path,
+						reason: "no-baseline-conflict",
+						local,
+						remote,
+					});
+					continue;
+				}
 				// File changed on one or both sides
 				if (local.mtime > remote.mtime) {
 					plan.uploads.push(local);
@@ -87,18 +105,28 @@ export class SyncPlanBuilder {
 		for (const remote of remoteFiles) {
 			const local = localMap.get(remote.path);
 			if (!local) {
-				// File exists remotely but not locally
-				if (this.index && this.index.files[remote.path]) {
-					// Previously existed locally, now missing → deleted locally
-					// → propagate deletion to remote
-					plan.remoteDeletes.push(remote);
+				if (!this.index) {
+					plan.reconciliation.push({
+						path: remote.path,
+						reason: "no-baseline-remote-only",
+						remote,
+					});
+				} else if (this.index.files[remote.path]) {
+					// A previously synced path is missing locally. Do not delete remotely silently.
+					plan.reconciliation.push({
+						path: remote.path,
+						reason: "possible-local-deletion",
+						remote,
+					});
 				} else {
-					// Never synced before → new file on remote, download
+					// A path not present in a valid local baseline is a new remote file.
 					plan.downloads.push(remote);
 					plan.downloadSize += remote.size;
 				}
 			}
 		}
+
+		plan.requiresReconciliation = plan.reconciliation.length > 0;
 
 		return plan;
 	}
@@ -236,9 +264,21 @@ async function runWithConcurrency<T>(
 		executing.add(p);
 
 		if (executing.size >= limit) {
-			await Promise.race(executing);
+			try {
+				await Promise.race(executing);
+			} catch (error) {
+				// A cancellation/error must not let main.ts disconnect while
+				// other already-started operations are still running.
+				await Promise.allSettled(executing);
+				throw error;
+			}
 		}
 	}
 
-	await Promise.all(executing);
+	try {
+		await Promise.all(executing);
+	} catch (error) {
+		await Promise.allSettled(executing);
+		throw error;
+	}
 }

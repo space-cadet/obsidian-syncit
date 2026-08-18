@@ -1,7 +1,7 @@
 # Tech Context — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 11:16 IST*
+*Last Updated: 2026-08-18 11:45 IST*
 
 ## Stack
 
@@ -185,5 +185,13 @@ const response = await requestUrl({
 4. **Mobile filesystem** — `FileSystemAdapter` vs mobile adapter differences
 5. **Large files** — Mobile memory limits; consider streaming for >10MB
 6. **`.obsidian/` folder sync** — `app.vault.getFiles()` excludes dot folders by design. Would require rewriting VaultScanner to use `app.vault.adapter.list()` (obsidian-ai pattern). Deferred.
-7. **saveSettings() index clearing** — Clearing sync index on every settings save (even trivial toggles) caused full re-uploads. Fix: only clear when server config (URL/username/password/baseDir) actually changes.
+7. **saveSettings() index clearing** — Clearing sync index on every settings save (even trivial toggles) caused full re-uploads. The blanket clear was removed, but the current implementation still needs a true pre-change settings snapshot because settings controls mutate the shared object before `saveSettings()` runs.
 8. **Signature normalization** — `makeServerSignature()` must trim whitespace and strip trailing slashes from URL/baseDir to prevent signature mismatches from trivial formatting differences.
+
+## Planned T13 Safety Architecture
+
+The local `sync-index.json` is a performance cache only. It cannot resolve first-sync ambiguity on a new device. T13 adds a versioned remote `.syncit/manifest.json` with content hashes, ETags, last-known paths, and deletion tombstones. The manifest is the shared baseline; the local index is rebuilt only after a complete verified run.
+
+Planned settings include `syncDirection` (`two-way`, `download-only`, `upload-only`), `initialSyncPolicy` (`prompt`, `remote-wins`, `local-wins`, `review`), `conflictPolicy`, and `deletePolicy` (`trash`, `permanent`, `ignore`). These policies must be separate: an ongoing two-way mode does not make a first sync safe.
+
+T13 also coordinates T4 conflict handling, T5 reconciliation history, T6 folder-scoped decisions, T9 atomic writes, and T10 reversible trash/snapshot behavior. Binary-safe file operations and encoded WebDAV path segments are required before claiming full vault support.

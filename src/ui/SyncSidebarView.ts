@@ -175,7 +175,7 @@ export class SyncSidebarView extends ItemView {
 		this.completedOps = 0;
 		this.totalBytes = plan.uploadSize + plan.downloadSize;
 		this.transferredBytes = 0;
-		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged + plan.remoteDeletes.length;
+		this.scanned = plan.uploads.length + plan.downloads.length + plan.conflicts.length + plan.unchanged + plan.remoteDeletes.length + plan.reconciliation.length;
 		this.uploaded = 0;
 		this.skipped = plan.unchanged;
 		this.overwritten = 0;
@@ -191,6 +191,7 @@ export class SyncSidebarView extends ItemView {
 		if (plan.downloads.length > 0) parts.push(`${plan.downloads.length}↓ ${formatBytes(plan.downloadSize)}`);
 		if (plan.remoteDeletes.length > 0) parts.push(`${plan.remoteDeletes.length}🗑`);
 		if (plan.unchanged > 0) parts.push(`${plan.unchanged}⏭`);
+		if (plan.reconciliation.length > 0) parts.push(`${plan.reconciliation.length}⚠️ review`);
 		this.lastSyncEl.setText(parts.join(" · ") || "Nothing to sync");
 
 		this._removeCompletionUI();
@@ -198,6 +199,25 @@ export class SyncSidebarView extends ItemView {
 		this._ensureProgressUI();
 		this._updateProgressBar();
 		this._updateStats();
+	}
+
+	/** Stop before transfers when the plan contains ambiguous or destructive decisions. */
+	setReconciliationRequired(plan: SyncPlan) {
+		this.isSyncing = false;
+		this.currentPlan = plan;
+		this.statusEl.setText("Reconciliation required");
+		this.lastSyncEl.setText(
+			`${plan.reconciliation.length} file(s) need a decision before syncing`,
+		);
+		this._removeProgressUI();
+		this._removeCompletionUI();
+		if (this.logHeaderEl) {
+			this.logHeaderEl.setText("⚠️ Reconciliation required");
+			this.logHeaderEl.style.color = "var(--text-warning)";
+		}
+		this.syncBtn.style.display = "block";
+		(this.syncBtn as HTMLButtonElement).disabled = false;
+		this.syncBtn.setText("Sync Now");
 	}
 
 	/** Phase 3: Called during transfer with size-based progress. */

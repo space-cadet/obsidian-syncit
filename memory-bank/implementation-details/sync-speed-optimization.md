@@ -167,7 +167,7 @@ Every sync re-reads and re-compares every file. There's no record of "what was a
 | 3 | T12c — Batch MKCOL | ✅ Complete | — |
 | 4 | T12d — Local index | ✅ Complete | — |
 | 5 | Signature normalization | ✅ Complete | `aaa1d4a` |
-| 6 | saveSettings() fix | ✅ Complete | `fd784b2` |
+| 6 | saveSettings() invalidation narrowing | ⚠️ Partial | `fd784b2` removed the blanket clear; a true pre-change snapshot and tests remain required |
 
 ---
 
@@ -190,4 +190,4 @@ Every sync re-reads and re-compares every file. There's no record of "what was a
 | `src/sync/SyncPlan.ts` | T12b (concurrency in executePlan) |
 | `src/sync/SyncIndex.ts` | T12d (local sync index) |
 | `src/types.ts` | T12b (concurrencyLimit setting), T12d (index types) |
-| `src/settings.ts` | T12b (concurrency UI), T12d (signature normalization, saveSettings fix) |
+| `src/settings.ts` | T12b (concurrency UI), T12d (signature normalization, partial saveSettings invalidation fix) |

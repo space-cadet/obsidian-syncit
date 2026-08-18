@@ -64,10 +64,26 @@ export interface SyncPlan {
 	localDeletes: FileEntity[];
 	remoteDeletes: FileEntity[];
 	conflicts: Array<{ local: FileEntity; remote: FileEntity }>;
+	reconciliation: ReconciliationItem[];
+	requiresReconciliation: boolean;
 	unchanged: number;
 	// Size totals for progress
 	uploadSize: number;
 	downloadSize: number;
+}
+
+export type ReconciliationReason =
+	| "no-baseline-local-only"
+	| "no-baseline-remote-only"
+	| "no-baseline-conflict"
+	| "possible-remote-deletion"
+	| "possible-local-deletion";
+
+export interface ReconciliationItem {
+	path: string;
+	reason: ReconciliationReason;
+	local?: FileEntity;
+	remote?: FileEntity;
 }
 
 export interface SyncResult {

@@ -1,11 +1,48 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 11:16 IST*
+*Last Updated: 2026-08-18 12:25 IST*
 
 ---
 
 ## 2026-08-18
+
+#### 12:25:00 IST - T9: Implement atomic write slice
+- Created `src/sync/AtomicWrite.ts` - Shared temp-file marker and same-directory temp paths
+- Modified `src/local/VaultScanner.ts` - Atomic adapter write/rename, recursive parent creation, startup cleanup, and temp-file scan exclusion
+- Modified `src/remote/WebDAVAdapter.ts` - Temporary PUT followed by WebDAV MOVE, cleanup on failure, and temp-file listing exclusion
+- Modified `src/main.ts` - Clean up local orphaned temp files during plugin startup
+- Created `tests/vault-scanner-atomic-write.test.ts` and `tests/webdav-atomic-write.test.ts`
+- Created `vitest.config.ts` and `tests/mocks/obsidian.ts` - Resolved the external Obsidian host module for normal pnpm test execution
+- Verification: production build passed; 4 test files and 11 tests passed with `pnpm test`; T9 remains in progress for remote orphan cleanup, binary validation, and explicit MOVE capability handling
+
+#### 12:04:05 IST - T13a: Implement first-sync safety gate
+- Modified `src/types.ts` - Added reconciliation reasons, items, and plan gate fields
+- Modified `src/sync/SyncPlan.ts` - Blocked no-baseline and possible-deletion paths from automatic transfer; drained workers after rejection
+- Modified `src/sync/SyncIndex.ts` - Rejected cached indexes with a different server signature
+- Modified `src/sync/SyncIndex.ts` - Keep the previous in-memory cache when persisting a new index fails
+- Modified `src/main.ts` - Added reconciliation gate, correct last-persisted settings comparison, partial-index protection, and rebuild locking
+- Modified `src/ui/SyncSidebarView.ts` - Added reconciliation-required status and plan summary
+- Created `tests/sync-index.test.ts` - Covered in-memory server-signature isolation
+- Created `tests/sync-plan-reconciliation.test.ts` - Covered first-sync ambiguity, conflicts, and possible remote deletion
+- Verification: global TypeScript check passed; dependency-based Vitest run remains unavailable because `node_modules` is not installed
+
+#### 11:49:33 IST - T13: Plan safe cross-device reconciliation
+- Created `memory-bank/tasks/T13.md` - Recorded first-sync authority, sync-direction modes, shared manifest, deletion tombstones, conflict/move handling, safe deletion, binary transfer, atomic-write coordination, and acceptance criteria
+- Created `memory-bank/implementation-details/cross-device-reconciliation.md` - Documented the state layers, decision matrix, reconciliation flow, manifest schema, tombstone lifecycle, and Chinese-learning-folder acceptance scenario
+- Modified `memory-bank/tasks/T4.md` - Moved deferred conflict and shared-baseline work under T13
+- Modified `memory-bank/tasks/T5.md` - Added reconciliation decision and manifest/tombstone history requirements
+- Modified `memory-bank/tasks/T6.md` - Added folder-scoped reconciliation decisions and move coordination
+- Modified `memory-bank/tasks/T8.md` - Recorded the missing reconciliation confirmation/apply flow
+- Modified `memory-bank/tasks/T9.md` - Added atomic baseline and binary-transfer coordination
+- Modified `memory-bank/tasks/T10.md` - Refined reversible remote trash and tombstone retention requirements
+- Modified `memory-bank/tasks/T12d.md` - Clarified local-cache limits and partial-run baseline rules
+- Modified `memory-bank/tasks.md` - Registered T13 as the P0 planning task and linked task details
+- Modified `memory-bank/activeContext.md` - Added T13 and corrected the stale saveSettings completion claim
+- Modified `memory-bank/session_cache.md` - Recorded the midday planning session and next implementation order
+- Modified `memory-bank/techContext.md` - Added the planned manifest, policy, and cross-task safety architecture
+- Modified `memory-bank/implementation-details/multi-pass-sync-architecture.md` - Documented the current deletion limitation and T13 phase extension
+- Created `memory-bank/sessions/2026-08-18-midday.md` - Recorded the approved plan and pull commit `e937829`
 
 #### 11:16 IST - T8: Build metadata injection in CI workflows
 - Modified `.github/workflows/release.yml` - Added `commitHash` and `buildDate` injection into `manifest.json` during stable release build

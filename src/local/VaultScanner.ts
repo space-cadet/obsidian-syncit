@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
 import type { FileEntity, SyncItSettings } from "../types";
+import { createSyncitTempPath, isSyncitTempPath } from "../sync/AtomicWrite";
 
 /**
  * Scans the local vault for files to sync.
@@ -18,7 +19,7 @@ export class VaultScanner {
 		const result: FileEntity[] = [];
 
 		for (const file of files) {
-			if (this.shouldExclude(file.path)) {
+			if (isSyncitTempPath(file.path) || this.shouldExclude(file.path)) {
 				continue;
 			}
 
@@ -77,19 +78,45 @@ export class VaultScanner {
 	 * Write content to a local file.
 	 */
 	async writeFile(path: string, content: string): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(path);
-		if (file instanceof TFile) {
-			await this.app.vault.modify(file, content);
-		} else {
-			// Create new file
-			const dir = path.split("/").slice(0, -1).join("/");
-			if (dir) {
-				const dirExists = await this.app.vault.adapter.exists(dir);
-				if (!dirExists) {
-					await this.app.vault.createFolder(dir);
-				}
+		await this.ensureParentDirectory(path);
+		const tempPath = createSyncitTempPath(path);
+
+		try {
+			await this.app.vault.adapter.write(tempPath, content);
+			await this.app.vault.adapter.rename(tempPath, path);
+		} catch (error) {
+			await this.removeTempFile(tempPath);
+			throw error;
+		}
+	}
+
+	/** Remove temporary files left behind by an interrupted write. */
+	async cleanupTempFiles(): Promise<number> {
+		let removed = 0;
+		for (const file of this.app.vault.getFiles()) {
+			if (!isSyncitTempPath(file.path)) continue;
+			await this.app.vault.adapter.remove(file.path);
+			removed++;
+		}
+		return removed;
+	}
+
+	private async ensureParentDirectory(path: string): Promise<void> {
+		const parts = path.split("/").slice(0, -1);
+		let current = "";
+		for (const part of parts) {
+			current = current ? `${current}/${part}` : part;
+			if (!(await this.app.vault.adapter.exists(current))) {
+				await this.app.vault.adapter.mkdir(current);
 			}
-			await this.app.vault.create(path, content);
+		}
+	}
+
+	private async removeTempFile(path: string): Promise<void> {
+		try {
+			await this.app.vault.adapter.remove(path);
+		} catch {
+			// Preserve the original error. A later startup cleanup can remove it.
 		}
 	}
 

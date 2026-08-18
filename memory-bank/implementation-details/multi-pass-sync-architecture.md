@@ -91,9 +91,9 @@ Raw seconds are formatted as human-readable durations:
 | 154.3 | `2m 34s` |
 | 3600 | `1h 0m` |
 
-## Deletion Detection
+## Current Deletion Detection Limitation
 
-With a local sync index (T12d), deletion detection works as follows:
+With only a local sync index (T12d), the current deletion detection works as follows:
 
 1. If a file is in the index but missing locally → schedule remote delete (or vice versa)
 2. If a file is in the index but has a different remote ETag → it was modified remotely
@@ -107,7 +107,7 @@ With a local sync index (T12d), deletion detection works as follows:
 - Full re-uploads (~45 min) every time settings were touched
 - Dry run showing 1,710 downloads because the index was deleted before it could be loaded
 
-**Fix**: Only clear the index when server config (URL, username, password, baseDir) actually changes. Compare old vs new values before clearing.
+The intended fix is to clear the index only when server config (URL, username, password, baseDir) actually changes. The current source still needs a true pre-change settings snapshot; the settings UI mutates the shared object before calling `saveSettings()`, so this remains an open correctness issue until verified by tests.
 
 **Prevention**: Any setting change that invalidates cached state needs a narrow, explicit invalidation condition — not a blanket clear on save.
 
@@ -128,3 +128,15 @@ With a local sync index (T12d), deletion detection works as follows:
 - [x] Duration formatted as `Xm Ys` instead of raw seconds
 - [x] Deletion detection works via sync index
 - [x] Cancel stops cleanly between phases
+
+## Planned T13 Extension
+
+The three phases remain useful, but Phase 2 must distinguish normal comparison from first-sync reconciliation:
+
+- without a trusted shared baseline, local-only and remote-only paths are ambiguous and must wait for a policy or user decision;
+- with a shared manifest, deletion tombstones distinguish stale offline copies from genuinely new files;
+- Phase 3 must execute only approved decisions and commit the local cache plus remote manifest after complete, verified success;
+- partial or cancelled runs must not create a new baseline;
+- Dry Run should expose the reconciliation plan without creating the remote base directory or applying transfers.
+
+See `tasks/T13.md` and `implementation-details/cross-device-reconciliation.md`.
