@@ -268,7 +268,13 @@ export default class SyncItPlugin extends Plugin {
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// Phase 2: Build plan
-			let plan = builder.buildPlan(localFiles, remoteFiles, mode);
+			let plan = builder.buildPlan(
+				localFiles,
+				remoteFiles,
+				mode,
+				this.settings.downloadOrphanPolicy,
+				this.settings.uploadOrphanPolicy,
+			);
 
 			if (plan.requiresReconciliation) {
 				if (this.settings.reconciliationPolicy === "follow-direction") {
@@ -453,7 +459,13 @@ export default class SyncItPlugin extends Plugin {
 			// DEBUG: Log scan results
 			await this._logDebug("INFO", `DryRun local=${localFiles.length} remote=${remoteFiles.length}`);
 
-			const plan = builder.buildPlan(localFiles, remoteFiles, this.settings.syncDirection);
+			const plan = builder.buildPlan(
+				localFiles,
+				remoteFiles,
+				this.settings.syncDirection,
+				this.settings.downloadOrphanPolicy,
+				this.settings.uploadOrphanPolicy,
+			);
 
 			// DEBUG: Log plan summary
 			await this._logDebug("INFO", `DryRun plan: uploads=${plan.uploads.length} downloads=${plan.downloads.length} deletes=${plan.remoteDeletes.length} conflicts=${plan.conflicts.length} unchanged=${plan.unchanged}`);

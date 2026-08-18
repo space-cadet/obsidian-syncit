@@ -17,6 +17,8 @@ export interface SyncItSettings {
 	concurrencyLimit: number;
 	syncDirection: ReconciliationMode;
 	reconciliationPolicy: "follow-direction" | "prompt";
+	downloadOrphanPolicy: "keep" | "delete-local";
+	uploadOrphanPolicy: "keep" | "delete-remote";
 }
 
 export const DEFAULT_SETTINGS: SyncItSettings = {
@@ -39,6 +41,8 @@ export const DEFAULT_SETTINGS: SyncItSettings = {
 	concurrencyLimit: 3,
 	syncDirection: "two-way",
 	reconciliationPolicy: "follow-direction",
+	downloadOrphanPolicy: "keep",
+	uploadOrphanPolicy: "keep",
 };
 
 export interface FileEntity {

@@ -24,30 +24,65 @@ export class SyncItSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Default sync direction")
 			.setDesc("The direction used by the sidebar Sync button and commands.")
-			.addDropdown((dropdown) => dropdown
-				.addOption("two-way", "Two-way — upload and download")
-				.addOption("upload-only", "Upload only — send local changes")
-				.addOption("download-only", "Download only — receive remote changes")
-				.setValue(this.plugin.settings.syncDirection)
-				.onChange(async (value) => {
-					this.plugin.settings.syncDirection = value as "two-way" | "upload-only" | "download-only";
-					await this.plugin.saveSettings();
-					this.plugin.refreshSidebarMode();
-				}),
-			);
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.addClass("syncit-dropdown");
+				dropdown
+					.addOption("two-way", "↕ Two-way — upload and download")
+					.addOption("upload-only", "↑ Upload only — send local changes")
+					.addOption("download-only", "↓ Download only — receive remote changes")
+					.setValue(this.plugin.settings.syncDirection)
+					.onChange(async (value) => {
+						this.plugin.settings.syncDirection = value as "two-way" | "upload-only" | "download-only";
+						await this.plugin.saveSettings();
+						this.plugin.refreshSidebarMode();
+					});
+			});
 
 		new Setting(containerEl)
 			.setName("When reconciliation is needed")
 			.setDesc("Upload/download-only modes resolve in that direction. Two-way sync still shows review when files are ambiguous.")
-			.addDropdown((dropdown) => dropdown
-				.addOption("follow-direction", "Follow sync direction")
-				.addOption("prompt", "Always prompt for review")
-				.setValue(this.plugin.settings.reconciliationPolicy)
-				.onChange(async (value) => {
-					this.plugin.settings.reconciliationPolicy = value as "follow-direction" | "prompt";
-					await this.plugin.saveSettings();
-				}),
-			);
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.addClass("syncit-dropdown");
+				dropdown
+					.addOption("follow-direction", "Follow sync direction")
+					.addOption("prompt", "Always prompt for review")
+					.setValue(this.plugin.settings.reconciliationPolicy)
+					.onChange(async (value) => {
+						this.plugin.settings.reconciliationPolicy = value as "follow-direction" | "prompt";
+						await this.plugin.saveSettings();
+					});
+			});
+
+		// Orphan file policies
+		new Setting(containerEl)
+			.setName("When downloading, local files not on remote")
+			.setDesc("What to do with local files that don't exist on the server during download-only sync.")
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.addClass("syncit-dropdown");
+				dropdown
+					.addOption("keep", "Keep local files")
+					.addOption("delete-local", "Delete local files (mirror)")
+					.setValue(this.plugin.settings.downloadOrphanPolicy)
+					.onChange(async (value) => {
+						this.plugin.settings.downloadOrphanPolicy = value as "keep" | "delete-local";
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName("When uploading, remote files not local")
+			.setDesc("What to do with remote files that don't exist locally during upload-only sync.")
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.addClass("syncit-dropdown");
+				dropdown
+					.addOption("keep", "Keep remote files")
+					.addOption("delete-remote", "Delete remote files (mirror)")
+					.setValue(this.plugin.settings.uploadOrphanPolicy)
+					.onChange(async (value) => {
+						this.plugin.settings.uploadOrphanPolicy = value as "keep" | "delete-remote";
+						await this.plugin.saveSettings();
+					});
+			});
 
 		containerEl.createEl("h3", { text: "WebDAV connection" });
 
