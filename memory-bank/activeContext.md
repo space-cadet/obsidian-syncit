@@ -25,6 +25,7 @@
   - `7ad84f9` — Sync dropdown shows dry run options per mode
   - `9f7725e` — **UI refactor: mode selector + Sync/Dry Run buttons**
 - All builds pass; tests 17/17 throughout.
+- **Build fix post-merge:** `276725c` — restored `openSettings()` method signature accidentally broken during `openSyncMenu` removal. Added `@ts-ignore` comment placement.
 - **T13: Safe Cross-Device Reconciliation** - ✅ Reviewed, approved, merged to main.
 
 ## Recently Completed (2026-08-18)
