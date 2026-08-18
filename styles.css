@@ -166,15 +166,12 @@
 	background: var(--background-modifier-hover);
 }
 
-/* ═══════════════════════════════════════
-   Settings ToC
-   ═══════════════════════════════════════ */
-
-.syncit-settings-toc a:hover {
-	text-decoration: none;
+/* Settings ToC — compact, non-sticky */
+.syncit-settings-toc {
+	/* no sticky positioning */
 }
 
-/* Smooth scroll offset for sticky header */
+/* Smooth scroll offset for section headers */
 #sync-behavior,
 #connection,
 #safety,
@@ -183,5 +180,5 @@
 #updates,
 #actions,
 #version-info {
-	scroll-margin-top: 70px;
+	scroll-margin-top: 12px;
 }

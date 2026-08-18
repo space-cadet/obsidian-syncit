@@ -55,34 +55,30 @@ export class SyncItSettingTab extends PluginSettingTab {
 
 	private renderToC(containerEl: HTMLElement) {
 		const toc = containerEl.createEl("nav", { cls: "syncit-settings-toc" });
-		toc.style.position = "sticky";
-		toc.style.top = "0";
-		toc.style.background = "var(--background-primary)";
-		toc.style.padding = "12px 16px";
-		toc.style.marginBottom = "16px";
-		toc.style.border = "1px solid var(--background-modifier-border)";
-		toc.style.borderRadius = "8px";
-		toc.style.zIndex = "10";
+		toc.style.padding = "8px 0 12px";
+		toc.style.marginBottom = "12px";
+		toc.style.borderBottom = "1px solid var(--background-modifier-border)";
 
 		const tocTitle = toc.createEl("div");
 		tocTitle.style.fontWeight = "600";
-		tocTitle.style.fontSize = "0.9em";
-		tocTitle.style.marginBottom = "8px";
-		tocTitle.setText("Jump to section");
+		tocTitle.style.fontSize = "0.85em";
+		tocTitle.style.marginBottom = "6px";
+		tocTitle.style.color = "var(--text-muted)";
+		tocTitle.setText("Jump to");
 
 		const tocList = toc.createEl("div");
 		tocList.style.display = "flex";
 		tocList.style.flexWrap = "wrap";
-		tocList.style.gap = "6px";
+		tocList.style.gap = "4px";
 
 		for (const section of SECTIONS) {
 			const link = tocList.createEl("a", {
 				href: `#${section.id}`,
 				text: section.title,
 			});
-			link.style.padding = "3px 10px";
-			link.style.fontSize = "0.8em";
-			link.style.borderRadius = "4px";
+			link.style.padding = "2px 8px";
+			link.style.fontSize = "0.75em";
+			link.style.borderRadius = "10px";
 			link.style.background = "var(--background-primary-alt)";
 			link.style.color = "var(--text-muted)";
 			link.style.textDecoration = "none";
@@ -92,10 +88,12 @@ export class SyncItSettingTab extends PluginSettingTab {
 			link.addEventListener("mouseenter", () => {
 				link.style.background = "var(--interactive-accent)";
 				link.style.color = "var(--text-on-accent)";
+				link.style.borderColor = "var(--interactive-accent)";
 			});
 			link.addEventListener("mouseleave", () => {
 				link.style.background = "var(--background-primary-alt)";
 				link.style.color = "var(--text-muted)";
+				link.style.borderColor = "var(--background-modifier-border)";
 			});
 			link.addEventListener("click", (e) => {
 				e.preventDefault();
