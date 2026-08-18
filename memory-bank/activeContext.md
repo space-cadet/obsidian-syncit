@@ -1,35 +1,37 @@
 # Active Context
 
-*Last Updated: 2026-08-18 13:30 IST*
+*Last Updated: 2026-08-19 00:58 IST*
 
 ## Current Tasks
-- T13: **Safe Cross-Device Reconciliation and Shared Sync State** — P0 data-safety work (🔄 T13a/T13b implemented; T13c next)
-- T5: **Sync History Log** — User's #2 priority (🔄 Next)
-- T6: Selective Sync — User's #3 priority (🔄)
-- T7: Sync Pause and Resume — User's #4 priority (🔄)
-- T9: Atomic Writes — User's #6 priority (🔄 atomic text write path implemented; remote orphan cleanup and binary validation remain)
-- T10: Trash Mode and Snapshots — User's #7 priority (🔄, needs refinement)
-- T11: Chunked Downloads — User's #8 priority (🔄)
+- **T14: Sync Direction Dropdown + Policy Settings UI** - New P1 task, implementing now (🔄 In Progress)
+- T13: **Safe Cross-Device Reconciliation** - ✅ MERGED. Reconciliation panel code present but will be temporarily disabled in favor of sync direction dropdown + policy settings. T13c (shared manifest/tombstones) deferred.
+- T5: **Sync History Log** - User's #2 priority (🔄 Next after T14)
+- T6: Selective Sync - User's #3 priority (🔄)
+- T7: Sync Pause and Resume - User's #4 priority (🔄)
+- T10: Trash Mode and Snapshots - User's #7 priority (🔄, needs refinement)
+- T11: Chunked Downloads - User's #8 priority (🔄)
+
+## Recently Completed (2026-08-19)
+- **T13: Safe Cross-Device Reconciliation** - ✅ Reviewed, approved, merged to main. T13a/T13b implemented. Reconciliation panel code preserved but will be conditionally disabled in favor of sync direction dropdown.
+- **T13 review**: Build clean, 15/15 tests pass. Minor notes: dry-run blocked by reconciliation, `use-local` on remote-only deletes remote file, WebDAV MOVE capability not checked.
+- T2 branch-aware updater: ✅ Complete (merged)
+- T9 Atomic Writes: ✅ Partial (merged) - local temp+rename, WebDAV temp PUT+MOVE
 
 ## Recently Completed (2026-08-18)
-- T8: Dry Run Mode ✅ — `performDryRun()`, 2x2 button grid, scan spinner, debug logging
-- Persistent sync log UI ✅ — always-visible, 200px minHeight, dynamic header
-- Build metadata injection ✅ — commitHash + buildDate in manifest for stable and dev CI builds
-- Signature normalization ✅ — `makeServerSignature()` trims whitespace, strips trailing slashes
-- Critical bug fix attempted: `saveSettings()` no longer blanket-clears the index, but pre-change settings capture still requires source-level repair and tests
+- T8: Dry Run Mode ✅ - `performDryRun()`, 2x2 button grid, scan spinner, debug logging
+- Persistent sync log UI ✅ - always-visible, 200px minHeight, dynamic header
+- Build metadata injection ✅ - commitHash + buildDate in manifest for stable and dev CI builds
+- Signature normalization ✅ - `makeServerSignature()` trims whitespace, strips trailing slashes
+- Critical bug fix: `saveSettings()` index wiping ✅ - only clears index when server config actually changes
 
 ## Known Issues / Decisions
 - `.obsidian/` folder sync: **Not possible** with `app.vault.getFiles()` — Obsidian API excludes dot folders by design. Would require rewriting VaultScanner to use `app.vault.adapter.list()` (obsidian-ai pattern). Deferred.
-- Dry run "1710 downloads" root cause: `saveSettings()` was wiping sync index before dry run could load it. The blanket clear was removed in fd784b2, but the current source still needs a true pre-change settings snapshot because the settings UI mutates the shared object before calling `saveSettings()`.
 - Debug logging: Writes to `debug.log` file (not console) — user preference for production builds
-- New-device reconciliation: local-only and remote-only files are ambiguous without a shared baseline. Do not silently upload or delete them.
-- Cross-device deletion: the local sync index cannot record deletions for another device. T13 plans a remote manifest with tombstones.
-- T8 is complete as a preview-only dry run; its missing confirmation/apply flow is now part of T13.
-- T4 ETag capture is complete, but conflict UI, keep-both, move detection, and shared deletion history remain planned under T13.
-- T13a blocks ambiguous first-sync and possible-deletion plans before transfer. T13b now adds explicit per-file decisions, first-review direction shortcuts, safe local/remote deletion actions, keep-both handling, and apply-time revalidation. T13c must add the shared manifest and tombstones.
-- T9 now writes local files through same-directory temporary paths and adapter rename, and remote files through temporary WebDAV PUT plus MOVE. Failed writes clean up temporary files; tests cover success, write failure, rename/MOVE failure, and local startup cleanup.
-- T13b now provides the reconciliation review/apply panel, explicit use-local/use-remote/keep-both/cancel choices, first-review policy shortcuts, safe local deletion, dry-run “Would ...” labels, and larger scroll areas. Build passed; 15 tests passed. T13c shared manifest/tombstones remain.
-- T2 branch-aware updater follow-up is complete: feature-branch CI now records `buildBranch`, `main.ts` passes it to `PluginUpdater`, and branch commit requests safely encode names containing `/`. Commit `2837d20` was pushed to `agent/t13-t9-safe-sync`.
+- New-device reconciliation: local-only and remote-only files are ambiguous without a shared baseline. **Decision**: Temporarily disable reconciliation panel; auto-resolve based on sync direction (T14). Will return with proper default policies later.
+- Cross-device deletion: the local sync index cannot record deletions for another device. T13c plans a remote manifest with tombstones — deferred until after T14.
+- T4 ETag capture is complete, but conflict UI deferred until after sync directions are implemented.
+- T9 atomic writes implemented for text files; binary-safe verification and remote orphan cleanup remain.
+- T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

@@ -1,7 +1,7 @@
 # Memory Bank — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 13:30 IST*
+*Last Updated: 2026-08-19 00:58 IST*
 
 ## Overview
 
@@ -11,11 +11,10 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
-| T13 | Safe Cross-Device Reconciliation and Shared Sync State | 🔄 | P0 | 2026-08-18 | T4, T5, T8, T9, T10, T12d | [Details](tasks/T13.md) |
+| T14 | Sync Direction Dropdown + Policy Settings UI | 🔄 | P1 | 2026-08-19 | T13 | [Details](tasks/T14.md) |
 | T5 | Sync History Log | 🔄 | P1 | — | T1, T13 | [Details](tasks/T5.md) |
 | T6 | Selective Sync | 🔄 | P1 | — | T1, T13 | [Details](tasks/T6.md) |
 | T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | [Details](tasks/T7.md) |
-| T9 | Atomic Writes | 🔄 | P1 | — | T1, T13 | [Details](tasks/T9.md) |
 | T10 | Trash Mode and Snapshots | 🔄 | P1 | — | T1, T13 | [Details](tasks/T10.md) |
 | T11 | Chunked Downloads | 🔄 | P2 | — | T1 | [Details](tasks/T11.md) |
 
@@ -28,16 +27,18 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T3 | Sidebar UI & Progress Modal | ✅ COMPLETE | HIGH | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T3.md) |
 | T3a | Sidebar-Native Progress Display | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T3 | [Details](tasks/T3a.md) |
 | T4 | ETag Support (WebDAV) | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T4.md) |
+| T8 | Dry Run Mode | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-18 | T1 | [Details](tasks/T8.md) |
+| T9 | Atomic Writes | ✅ COMPLETE | P1 | 2026-08-18 | 2026-08-18 | T1 | [Details](tasks/T9.md) |
 | T12 | Sync Speed Optimization | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1–T3 | [Details](tasks/T12.md) |
 | T12a | Binary Transfer | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T12a.md) |
 | T12b | Streaming Uploads | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T12b.md) |
 | T12c | Directory Batching | ✅ COMPLETE | P0 | 2026-08-17 | 2026-08-17 | T1 | [Details](tasks/T12c.md) |
 | T12d | Local Sync Index | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-17 | T4 | [Details](tasks/T12d.md) |
-| T8 | Dry Run Mode | ✅ COMPLETE | P1 | 2026-08-17 | 2026-08-18 | T1 | [Details](tasks/T8.md) |
+| T13 | Safe Cross-Device Reconciliation | ✅ COMPLETE | P0 | 2026-08-18 | 2026-08-19 | T4, T5, T8, T9, T10, T12d | [Details](tasks/T13.md) |
 
 ## Status Summary
 
-- **Active**: 7 (T5–T7, T9–T11, T13)
-- **Completed**: 11 (T1–T4, T8, T12 + T12a–T12d)
+- **Active**: 6 (T5–T7, T10–T11, T14)
+- **Completed**: 14 (T1–T4, T8–T9, T12 + T12a–T12d, T13)
 - **Paused**: 0
-- **Total**: 18
+- **Total**: 20
