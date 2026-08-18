@@ -18,6 +18,22 @@ export default class SyncItPlugin extends Plugin {
 	private statusBarEl: HTMLSpanElement | null = null;
 	private _updater: PluginUpdater | null = null;
 	private _sidebarView: SyncSidebarView | null = null;
+	private debugLogPath = `.obsidian/plugins/${this.manifest?.id ?? "obsidian-syncit"}/debug.log`;
+
+	/** Append a line to the plugin debug log. */
+	private async _logDebug(level: string, message: string): Promise<void> {
+		try {
+			const path = this.debugLogPath;
+			const existing = await this.app.vault.adapter.exists(path)
+				? await this.app.vault.adapter.read(path)
+				: "";
+			const lines = existing.split("\n").slice(-499);
+			lines.push(`[${new Date().toISOString()}] [${level}] ${message}`);
+			await this.app.vault.adapter.write(path, lines.join("\n"));
+		} catch {
+			// Silently fail
+		}
+	}
 
 	async onload() {
 		console.info(`Loading SyncIt plugin`);
@@ -300,38 +316,24 @@ export default class SyncItPlugin extends Plugin {
 			const index = await this.indexManager?.load(serverSignature) ?? null;
 
 			// DEBUG: Log index state
-			console.log("[SyncIt DryRun] Server signature:", serverSignature);
-			console.log("[SyncIt DryRun] Index loaded:", index ? "YES" : "NO");
+			await this._logDebug("INFO", `DryRun signature=${serverSignature}`);
+			await this._logDebug("INFO", `DryRun index loaded=${index ? "YES" : "NO"}`);
 			if (index) {
 				const entryCount = Object.keys(index.files).length;
-				console.log("[SyncIt DryRun] Index entries:", entryCount);
-				console.log("[SyncIt DryRun] Index signature:", index.serverSignature);
+				await this._logDebug("INFO", `DryRun index entries=${entryCount}`);
+				await this._logDebug("INFO", `DryRun index sig=${index.serverSignature}`);
 			}
 
 			const builder = new SyncPlanBuilder(this.scanner!, this.adapter!, this.indexManager ?? undefined, index);
 			const { localFiles, remoteFiles } = await builder.scan();
 
 			// DEBUG: Log scan results
-			console.log("[SyncIt DryRun] Local files:", localFiles.length);
-			console.log("[SyncIt DryRun] Remote files:", remoteFiles.length);
-
-			// DEBUG: Compare first 5 files
-			const remoteMap = new Map(remoteFiles.map(f => [f.path, f]));
-			for (let i = 0; i < Math.min(5, localFiles.length); i++) {
-				const local = localFiles[i];
-				const remote = remoteMap.get(local.path);
-				const entry = index?.files[local.path];
-				console.log(`[SyncIt DryRun] File ${i}: ${local.path}`);
-				console.log(`  local: mtime=${local.mtime}, size=${local.size}`);
-				console.log(`  remote: mtime=${remote?.mtime}, size=${remote?.size}, etag=${remote?.etag}`);
-				console.log(`  index: localMtime=${entry?.localMtime}, remoteMtime=${entry?.remoteMtime}, etag=${entry?.etag}`);
-				if (remote && this.indexManager) {
-					const unchanged = this.indexManager.isUnchanged(local, remote, index);
-					console.log(`  isUnchanged: ${unchanged}`);
-				}
-			}
+			await this._logDebug("INFO", `DryRun local=${localFiles.length} remote=${remoteFiles.length}`);
 
 			const plan = builder.buildPlan(localFiles, remoteFiles);
+
+			// DEBUG: Log plan summary
+			await this._logDebug("INFO", `DryRun plan: uploads=${plan.uploads.length} downloads=${plan.downloads.length} deletes=${plan.remoteDeletes.length} conflicts=${plan.conflicts.length} unchanged=${plan.unchanged}`);
 
 			this._sidebarView?.setPlan(plan);
 
