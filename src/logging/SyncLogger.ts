@@ -50,7 +50,9 @@ export class SyncLogger {
 		maxSizeMB: number;
 		keepBackup: boolean;
 	}) {
-		this.canonicalPath = `${options.vaultBasePath}/.syncit/log.jsonl`;
+		this.canonicalPath = options.vaultBasePath
+			? `${options.vaultBasePath}/.syncit/log.jsonl`
+			: ".syncit/log.jsonl";
 		this.backupPath = options.keepBackup
 			? `${options.pluginDirPath}/sync-log.jsonl`
 			: null;
