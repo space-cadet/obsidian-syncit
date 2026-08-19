@@ -618,6 +618,7 @@ export default class SyncItPlugin extends Plugin {
 		this.isSyncing = true;
 		new Notice("SyncIt: Rebuilding index...", 2000);
 		this.updateStatusBar("Rebuilding index...");
+		await this.logger?.info("index", "Index rebuild started");
 
 		try {
 			if (!this.adapter || !this.scanner) {
@@ -652,12 +653,17 @@ export default class SyncItPlugin extends Plugin {
 					serverSignature,
 				);
 				await this.indexManager.save(index);
+				await this.logger?.info("index", "Index rebuilt", {
+					localFiles: localFiles.length,
+					remoteFiles: remoteFiles.length,
+				});
 				new Notice(`SyncIt: Index rebuilt — ${localFiles.length} local, ${remoteFiles.length} remote files`, 4000);
 				this.updateStatusBar("Index rebuilt");
 			}
 		} catch (error) {
 			console.error("SyncIt rebuild index failed:", error);
 			const msg = error instanceof Error ? error.message : String(error);
+			await this.logger?.error("index", "Index rebuild failed", { error: msg });
 			new Notice(`SyncIt: Index rebuild failed — ${msg}`, 6000);
 			this.updateStatusBar("Index rebuild failed");
 		} finally {
@@ -706,6 +712,7 @@ export default class SyncItPlugin extends Plugin {
 
 	async checkForUpdates(manual: boolean) {
 		if (!this._updater) return;
+		await this.logger?.info("update", "Update check started", { manual, channel: this.settings.updateChannel });
 
 		try {
 			const result = await this._updater.checkForUpdate(
@@ -719,6 +726,7 @@ export default class SyncItPlugin extends Plugin {
 			await this.saveSettings();
 
 			if (!result.hasUpdate) {
+				await this.logger?.info("update", "No update available", { commitMatch: result.commitMatch });
 				if (manual) {
 					if (result.commitMatch) {
 						new Notice("SyncIt: Already on latest dev build");
@@ -730,9 +738,16 @@ export default class SyncItPlugin extends Plugin {
 			}
 
 			// Auto-update stable if enabled
+			await this.logger?.info("update", "Update available", {
+				version: result.release?.tag_name,
+				prerelease: result.isPrerelease,
+				autoUpdate: this.settings.autoUpdate,
+			});
+
 			if (this.settings.autoUpdate && !result.isPrerelease) {
 				const tempDir = await this._updater.downloadUpdate(result.release!);
 				await this._updater.installUpdate(tempDir);
+				await this.logger?.info("update", "Auto-update installed", { version: result.release?.tag_name });
 				new Notice("✅ SyncIt updated. Reloading…");
 				// @ts-ignore
 				this.app.commands.executeCommandById("app:reload");
@@ -743,11 +758,13 @@ export default class SyncItPlugin extends Plugin {
 			const modal = new UpdateAvailableModal(this.app, result, async () => {
 				const tempDir = await this._updater!.downloadUpdate(result.release!);
 				await this._updater!.installUpdate(tempDir);
+				await this.logger?.info("update", "Update installed manually", { version: result.release?.tag_name });
 			});
 			modal.open();
 		} catch (error) {
 			console.error("SyncIt update check failed:", error);
 			const msg = error instanceof Error ? error.message : String(error);
+			await this.logger?.error("update", "Update check failed", { error: msg });
 			if (manual) {
 				new Notice(`SyncIt: Update check failed — ${msg}`, 8000);
 			}
@@ -756,9 +773,11 @@ export default class SyncItPlugin extends Plugin {
 
 	async showAvailableBuilds() {
 		if (!this._updater) return;
+		await this.logger?.info("update", "Browse builds opened");
 		const modal = new AvailableBuildsModal(this.app, this._updater, async (build) => {
 			const tempDir = await this._updater!.downloadUpdate(build.release);
 			await this._updater!.installUpdate(tempDir);
+			await this.logger?.info("update", "Build installed from browser", { version: build.release.tag_name });
 		});
 		modal.open();
 	}

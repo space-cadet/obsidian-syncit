@@ -14,7 +14,6 @@ const SECTIONS: SettingsSection[] = [
 	{ id: "performance", title: "Performance" },
 	{ id: "logging", title: "Logging" },
 	{ id: "updates", title: "Updates" },
-	{ id: "actions", title: "Actions" },
 ];
 
 export class SyncItSettingTab extends PluginSettingTab {
@@ -46,7 +45,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 		this.renderPerformance(containerEl);
 		this.renderLogging(containerEl);
 		this.renderUpdates(containerEl);
-		this.renderActions(containerEl);
 	}
 
 	// ═══════════════════════════════════════
@@ -298,9 +296,9 @@ export class SyncItSettingTab extends PluginSettingTab {
 	private renderPerformance(containerEl: HTMLElement) {
 		this.sectionHeader(containerEl, "performance", "Performance");
 
-		new Setting(containerEl)
+		const concurrencySetting = new Setting(containerEl)
 			.setName("Concurrency limit")
-			.setDesc("Maximum number of files to sync simultaneously. Higher = faster but more server load. (Default: 3)")
+			.setDesc(`Maximum files to sync simultaneously. Higher = faster but more server load. Current: ${this.plugin.settings.concurrencyLimit}`)
 			.addSlider((slider) =>
 				slider
 					.setLimits(1, 10, 1)
@@ -308,6 +306,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.concurrencyLimit = value;
+						concurrencySetting.setDesc(`Maximum files to sync simultaneously. Higher = faster but more server load. Current: ${value}`);
 						await this.plugin.saveSettings();
 					})
 			);
@@ -343,9 +342,9 @@ export class SyncItSettingTab extends PluginSettingTab {
 					});
 			});
 
-		new Setting(containerEl)
+		const maxAgeSetting = new Setting(containerEl)
 			.setName("Max log age")
-			.setDesc("Automatically purge log entries older than this many days.")
+			.setDesc(`Automatically purge log entries older than this many days. Current: ${this.plugin.settings.logMaxAgeDays} days`)
 			.addSlider((slider) =>
 				slider
 					.setLimits(1, 90, 1)
@@ -353,14 +352,15 @@ export class SyncItSettingTab extends PluginSettingTab {
 					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.logMaxAgeDays = value;
+						maxAgeSetting.setDesc(`Automatically purge log entries older than this many days. Current: ${value} days`);
 						await this.plugin.saveSettings();
 						this.plugin.logger?.updateSettings({ maxAgeDays: value });
 					})
 			);
 
-		new Setting(containerEl)
+		const maxSizeSetting = new Setting(containerEl)
 			.setName("Max log size")
-			.setDesc("Rotate log when it exceeds this size in MB. Older entries are purged first.")
+			.setDesc(`Rotate log when it exceeds this size in MB. Older entries are purged first. Current: ${this.plugin.settings.logMaxSizeMB} MB`)
 			.addSlider((slider) =>
 				slider
 					.setLimits(1, 100, 1)
@@ -368,6 +368,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.logMaxSizeMB = value;
+						maxSizeSetting.setDesc(`Rotate log when it exceeds this size in MB. Older entries are purged first. Current: ${value} MB`);
 						await this.plugin.saveSettings();
 						this.plugin.logger?.updateSettings({ maxSizeMB: value });
 					})
@@ -384,15 +385,6 @@ export class SyncItSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						this.plugin.logger?.updateSettings({ keepBackup: value });
 					})
-			);
-
-		new Setting(containerEl)
-			.setName("Open sync sidebar")
-			.setDesc("View sync progress, history, and logs in the sidebar")
-			.addButton((button) =>
-				button
-					.setButtonText("Open Sidebar")
-					.onClick(() => this.plugin.openSidebarView())
 			);
 	}
 
@@ -492,29 +484,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 				.onClick(() => this.plugin.showAvailableBuilds()));
 	}
 
-	// ═══════════════════════════════════════
-	//  Actions
-	// ═══════════════════════════════════════
 
-	private renderActions(containerEl: HTMLElement) {
-		this.sectionHeader(containerEl, "actions", "Actions");
-
-		new Setting(containerEl)
-			.setName("Sync now")
-			.setDesc("Manually trigger a sync")
-			.addButton((button) =>
-				button
-					.setButtonText("Sync Now")
-					.setCta()
-					.onClick(() => {
-						this.plugin.performSync();
-					})
-			);
-	}
-
-	// ═══════════════════════════════════════
-	//  Helpers
-	// ═══════════════════════════════════════
 
 	private sectionHeader(
 		containerEl: HTMLElement,

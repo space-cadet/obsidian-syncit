@@ -1188,6 +1188,7 @@ export class SyncSidebarView extends ItemView {
 
 	private _clearLog() {
 		if (this.logListEl) this.logListEl.empty();
+		void this.plugin.logger?.info("ui", "Log display cleared");
 	}
 }
 
