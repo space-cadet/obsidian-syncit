@@ -130,31 +130,61 @@ export class SyncLogger {
 		this.writeQueue = [];
 		this.flushTimer = null;
 
-		console.log(`[SyncIt Logger] Flushing ${lines.split("\n").length - 1} lines to ${this.canonicalPath}`);
+		const trace = `[SyncIt Logger] Flushing ${lines.split("\n").length - 1} lines to ${this.canonicalPath}`;
+		console.log(trace);
+		this._writeDebug(trace);
 
 		try {
 			await this._appendToFile(this.canonicalPath, lines);
-			console.log(`[SyncIt Logger] Write to canonical path succeeded`);
+			const ok = `[SyncIt Logger] Write to canonical path succeeded`;
+			console.log(ok);
+			this._writeDebug(ok);
 			if (this.keepBackup && this.backupPath) {
 				await this._appendToFile(this.backupPath, lines);
-				console.log(`[SyncIt Logger] Write to backup path succeeded`);
+				const bok = `[SyncIt Logger] Write to backup path succeeded`;
+				console.log(bok);
+				this._writeDebug(bok);
 			}
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			console.error(`[SyncIt Logger] FAILED to write log: ${msg}`);
+			const fail = `[SyncIt Logger] FAILED to write log: ${msg}`;
+			console.error(fail);
 			console.error(`[SyncIt Logger] Path: ${this.canonicalPath}`);
 			console.error(`[SyncIt Logger] Error object:`, err);
+			this._writeDebug(fail);
+			this._writeDebug(`[SyncIt Logger] Path: ${this.canonicalPath}`);
+			this._writeDebug(`[SyncIt Logger] Error: ${JSON.stringify(err)}`);
 		}
 	}
 
+	private _writeDebug(msg: string): void {
+		// Write to plugin debug log for mobile visibility
+		const debugPath = ".obsidian/plugins/obsidian-syncit/debug.log";
+		void this.storage.exists(debugPath).then((exists) => {
+			if (exists) {
+				return this.storage.read(debugPath);
+			}
+			return "";
+		}).then((existing) => {
+			return this.storage.write(debugPath, existing + `[${new Date().toISOString()}] ${msg}\n`);
+		}).catch(() => {
+			// Silently ignore debug-write failures
+		});
+	}
+
 	private async _appendToFile(path: string, data: string): Promise<void> {
-		console.log(`[SyncIt Logger] _appendToFile: path=${path}, dataLength=${data.length}`);
+		const trace = `[SyncIt Logger] _appendToFile: path=${path}, dataLength=${data.length}`;
+		console.log(trace);
+		this._writeDebug(trace);
 		const exists = await this.storage.exists(path);
 		console.log(`[SyncIt Logger] exists(${path}) = ${exists}`);
+		this._writeDebug(`[SyncIt Logger] exists(${path}) = ${exists}`);
 		const existing = exists ? await this.storage.read(path) : "";
 		console.log(`[SyncIt Logger] existing length = ${existing.length}`);
+		this._writeDebug(`[SyncIt Logger] existing length = ${existing.length}`);
 		await this.storage.write(path, existing + data);
 		console.log(`[SyncIt Logger] write(${path}) completed`);
+		this._writeDebug(`[SyncIt Logger] write(${path}) completed`);
 
 		// Check rotation after write
 		await this._maybeRotate(path);
