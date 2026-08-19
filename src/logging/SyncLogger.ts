@@ -42,7 +42,6 @@ export class SyncLogger {
 	private flushTimer: number | null = null;
 
 	constructor(options: {
-		vaultBasePath: string;
 		pluginDirPath: string;
 		storage: LoggerStorage;
 		minLevel: LogLevel;
@@ -50,9 +49,7 @@ export class SyncLogger {
 		maxSizeMB: number;
 		keepBackup: boolean;
 	}) {
-		this.canonicalPath = options.vaultBasePath
-			? `${options.vaultBasePath}/.syncit/log.jsonl`
-			: ".syncit/log.jsonl";
+		this.canonicalPath = ".syncit/log.jsonl";
 		this.backupPath = options.keepBackup
 			? `${options.pluginDirPath}/sync-log.jsonl`
 			: null;
@@ -147,13 +144,14 @@ export class SyncLogger {
 			}
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
+			const stack = err instanceof Error ? err.stack : "";
 			const fail = `[SyncIt Logger] FAILED to write log: ${msg}`;
 			console.error(fail);
 			console.error(`[SyncIt Logger] Path: ${this.canonicalPath}`);
 			console.error(`[SyncIt Logger] Error object:`, err);
 			this._writeDebug(fail);
 			this._writeDebug(`[SyncIt Logger] Path: ${this.canonicalPath}`);
-			this._writeDebug(`[SyncIt Logger] Error: ${JSON.stringify(err)}`);
+			this._writeDebug(`[SyncIt Logger] Stack: ${stack || "(none)"}`);
 		}
 	}
 

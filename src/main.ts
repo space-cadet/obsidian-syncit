@@ -58,7 +58,6 @@ export default class SyncItPlugin extends Plugin {
 		}
 
 		// Initialize logger
-		const vaultBasePath = (this.app.vault.adapter as any).basePath ?? "";
 		const pluginDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
 
 		// Ensure .syncit directory exists (logger needs this)
@@ -69,7 +68,6 @@ export default class SyncItPlugin extends Plugin {
 		}
 
 		this.logger = new SyncLogger({
-			vaultBasePath,
 			pluginDirPath: pluginDir,
 			storage: {
 				exists: (path) => this.app.vault.adapter.exists(path),
