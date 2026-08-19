@@ -130,21 +130,31 @@ export class SyncLogger {
 		this.writeQueue = [];
 		this.flushTimer = null;
 
+		console.log(`[SyncIt Logger] Flushing ${lines.split("\n").length - 1} lines to ${this.canonicalPath}`);
+
 		try {
 			await this._appendToFile(this.canonicalPath, lines);
+			console.log(`[SyncIt Logger] Write to canonical path succeeded`);
 			if (this.keepBackup && this.backupPath) {
 				await this._appendToFile(this.backupPath, lines);
+				console.log(`[SyncIt Logger] Write to backup path succeeded`);
 			}
 		} catch (err) {
-			// Silently fail — logging should never break sync
-			console.warn("SyncIt: Failed to write log:", err);
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(`[SyncIt Logger] FAILED to write log: ${msg}`);
+			console.error(`[SyncIt Logger] Path: ${this.canonicalPath}`);
+			console.error(`[SyncIt Logger] Error object:`, err);
 		}
 	}
 
 	private async _appendToFile(path: string, data: string): Promise<void> {
+		console.log(`[SyncIt Logger] _appendToFile: path=${path}, dataLength=${data.length}`);
 		const exists = await this.storage.exists(path);
+		console.log(`[SyncIt Logger] exists(${path}) = ${exists}`);
 		const existing = exists ? await this.storage.read(path) : "";
+		console.log(`[SyncIt Logger] existing length = ${existing.length}`);
 		await this.storage.write(path, existing + data);
+		console.log(`[SyncIt Logger] write(${path}) completed`);
 
 		// Check rotation after write
 		await this._maybeRotate(path);
