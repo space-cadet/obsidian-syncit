@@ -1,7 +1,7 @@
 # Memory Bank — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-19 03:27 IST*
+*Last Updated: 2026-08-19 19:35 IST*
 
 ## Overview
 
@@ -16,6 +16,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | [Details](tasks/T7.md) |
 | T10 | Trash Mode and Snapshots | 🔄 | P1 | — | T1, T13 | [Details](tasks/T10.md) |
 | T11 | Chunked Downloads | 🔄 | P2 | — | T1 | [Details](tasks/T11.md) |
+| **T15** | **VaultScanner Hidden Folder Access** | **🔄 NEW** | **P1** | **2026-08-19** | **T1** | **[Details](tasks/T15.md)** |
 
 ## Completed Tasks
 
@@ -38,7 +39,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 ## Status Summary
 
-- **Active**: 5 (T5–T7, T10–T11)
+- **Active**: 6 (T5–T7, T10–T11, T15)
 - **Completed**: 15 (T1–T4, T8–T9, T12 + T12a–T12d, T13–T14)
 - **Paused**: 0
-- **Total**: 20
+- **Total**: 21

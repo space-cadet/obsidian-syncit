@@ -1,8 +1,14 @@
 # Active Context
 
-*Last Updated: 2026-08-19 03:27 IST*
+*Last Updated: 2026-08-19 19:35 IST*
 
 ## Current Tasks
+- **T15: VaultScanner Hidden Folder Access** — 🔄 **NEW** (2026-08-19)
+  - Rewrite `VaultScanner.scan()` to use `app.vault.adapter.list()` for hidden paths
+  - Add `includePatterns` setting (exceptions to `excludePatterns`)
+  - Safety: hardcoded blocklist for plugin code (`.js`, `.css`, `manifest.json`, `data.json`)
+  - Target: sync obsidian-ai sessions from `.obsidian/plugins/obsidian-ai/sessions/`
+  - Design doc: `implementation-details/vault-scanner-hidden-folders.md`
 - T14: **Sync Direction Dropdown + Policy Settings UI** - ✅ **COMPLETE** (merged to main)
   - UI refactor: mode selector + Sync / Dry Run buttons (separation of intent and action)
   - Replaces the 6-option dropdown with a cleaner 3-mode selector + two action buttons
@@ -36,7 +42,7 @@
 - Critical bug fix: `saveSettings()` index wiping ✅ - only clears index when server config actually changes
 
 ## Known Issues / Decisions
-- `.obsidian/` folder sync: **Not possible** with `app.vault.getFiles()` — Obsidian API excludes dot folders by design. Would require rewriting VaultScanner to use `app.vault.adapter.list()` (obsidian-ai pattern). Deferred.
+- **T15 IN PROGRESS**: `.obsidian/` folder sync previously "deferred" — now has active task (T15) to implement selective hidden-path access via `includePatterns`
 - Debug logging: Writes to `debug.log` file (not console) — user preference for production builds
 - New-device reconciliation: local-only and remote-only files are ambiguous without a shared baseline. **Decision**: Temporarily disable reconciliation panel; auto-resolve based on sync direction (T14). Will return with proper default policies later.
 - Cross-device deletion: the local sync index cannot record deletions for another device. T13c plans a remote manifest with tombstones — deferred until after T14.
