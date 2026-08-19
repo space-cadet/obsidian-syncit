@@ -267,6 +267,51 @@ export class SyncItSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 5;
 			});
+
+		new Setting(containerEl)
+			.setName("Include hidden paths")
+			.setDesc("Obsidian-hidden paths to include in sync (one per line). Must be under .obsidian/. Blocked file types are never synced.")
+			.addTextArea((text) => {
+				text
+					.setPlaceholder(".obsidian/plugins/obsidian-ai/sessions/")
+					.setValue(this.plugin.settings.includePatterns.join("\n"))
+					.onChange(async (value) => {
+						const raw = value
+							.split("\n")
+							.map((s) => s.trim())
+							.filter((s) => s.length > 0);
+
+						// Validate each pattern
+						const { HiddenPathScanner } = await import("./local/HiddenPathScanner");
+						const scanner = new HiddenPathScanner(this.app, raw);
+						const invalid: string[] = [];
+						for (const p of raw) {
+							const err = scanner.validatePattern(p);
+							if (err) invalid.push(`• "${p}": ${err}`);
+						}
+
+						this.plugin.settings.includePatterns = raw;
+						await this.plugin.saveSettings();
+
+						if (invalid.length > 0) {
+							new Notice(`SyncIt: Invalid include patterns:\n${invalid.join("\n")}`, 8000);
+						}
+					});
+				text.inputEl.rows = 4;
+			});
+
+		// Warning about safety blocklist
+		const blocklistWarning = containerEl.createEl("div", {
+			cls: "setting-item-description",
+		});
+		blocklistWarning.style.color = "var(--text-warning)";
+		blocklistWarning.style.fontSize = "0.8em";
+		blocklistWarning.style.marginTop = "-8px";
+		blocklistWarning.style.marginBottom = "12px";
+		blocklistWarning.innerHTML = `
+			<strong>Safety blocklist (never synced):</strong>
+			.js, .css, .mjs, .tmp, .bak, manifest.json, data.json, hot-reload.json
+		`;
 	}
 
 	// ═══════════════════════════════════════

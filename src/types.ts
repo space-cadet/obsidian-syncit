@@ -8,6 +8,7 @@ export interface SyncItSettings {
 	webdavPassword: string;
 	remoteBaseDir: string;
 	excludePatterns: string[];
+	includePatterns: string[];
 	confirmBeforeDelete: boolean;
 	moveToTrash: boolean;
 	checkForUpdates: boolean;
@@ -37,6 +38,7 @@ export const DEFAULT_SETTINGS: SyncItSettings = {
 		".trash/",
 		"node_modules/",
 	],
+	includePatterns: [],
 	confirmBeforeDelete: true,
 	moveToTrash: true,
 	checkForUpdates: true,

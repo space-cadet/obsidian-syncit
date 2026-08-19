@@ -1,6 +1,18 @@
 import { App, TFile } from "obsidian";
 import type { FileEntity, SyncItSettings } from "../types";
 import { createSyncitTempPath, isSyncitTempPath } from "../sync/AtomicWrite";
+import { HiddenPathScanner } from "./HiddenPathScanner";
+
+/**
+ * Safety blocklist applied to ALL scanned files (both standard and hidden).
+ */
+const BLOCKLISTED_FILES = [
+	"manifest.json",
+	"data.json",
+	"hot-reload.json",
+];
+
+const BLOCKLISTED_EXTS = [".js", ".css", ".mjs", ".tmp", ".bak"];
 
 /**
  * Scans the local vault for files to sync.
@@ -13,13 +25,42 @@ export class VaultScanner {
 
 	/**
 	 * Get all files that should be synced.
+	 * Merges standard vault scan with hidden path scan.
 	 */
 	async scan(): Promise<FileEntity[]> {
+		const standardFiles = await this.scanVaultRoot();
+
+		if (!this.settings.includePatterns || this.settings.includePatterns.length === 0) {
+			return standardFiles;
+		}
+
+		const hiddenFiles = await this.scanHiddenPaths();
+
+		// Merge, avoiding duplicates (standard scan wins if same path)
+		const seen = new Set(standardFiles.map((f) => f.path));
+		const merged = [...standardFiles];
+
+		for (const f of hiddenFiles) {
+			if (!seen.has(f.path)) {
+				merged.push(f);
+			}
+		}
+
+		return merged;
+	}
+
+	/**
+	 * Scan standard vault files via app.vault.getFiles().
+	 */
+	private async scanVaultRoot(): Promise<FileEntity[]> {
 		const files = this.app.vault.getFiles();
 		const result: FileEntity[] = [];
 
 		for (const file of files) {
 			if (isSyncitTempPath(file.path) || this.shouldExclude(file.path)) {
+				continue;
+			}
+			if (this.isBlocklisted(file.path)) {
 				continue;
 			}
 
@@ -34,20 +75,82 @@ export class VaultScanner {
 	}
 
 	/**
+	 * Scan hidden paths configured in includePatterns.
+	 */
+	private async scanHiddenPaths(): Promise<FileEntity[]> {
+		const scanner = new HiddenPathScanner(this.app, this.settings.includePatterns);
+		const files = await scanner.scan();
+
+		// Also apply user excludePatterns as a secondary filter
+		return files.filter((f) => !this.shouldExclude(f.path));
+	}
+
+	/**
+	 * Check if a file path matches the safety blocklist.
+	 */
+	isBlocklisted(path: string): boolean {
+		const basename = path.split("/").pop() || "";
+
+		if (BLOCKLISTED_FILES.includes(basename)) {
+			return true;
+		}
+
+		for (const ext of BLOCKLISTED_EXTS) {
+			if (basename.endsWith(ext)) {
+				return true;
+			}
+		}
+
+		// Block any file directly inside .obsidian/plugins/<plugin-id>/
+		// Subdirectories (e.g., .obsidian/plugins/foo/sessions/) are allowed
+		if (/^\.obsidian\/plugins\/[^/]+\/[^/]+$/.test(path)) {
+			return true;
+		}
+
+		return false;
+	}
+	/**
 	 * Check if a path should be excluded from sync.
+	 * Include patterns act as exceptions to exclude patterns.
 	 */
 	shouldExclude(path: string): boolean {
 		for (const pattern of this.settings.excludePatterns) {
-			if (pattern.endsWith("/")) {
-				// Directory pattern: exclude if path starts with this
-				if (path.startsWith(pattern) || path === pattern.slice(0, -1)) {
-					return true;
+			if (this.matchesPattern(path, pattern)) {
+				// Include patterns are exceptions to exclude patterns
+				if (this.isIncluded(path)) {
+					return false;
 				}
-			} else {
-				// File pattern: exact match or glob
-				if (path === pattern || this.matchGlob(path, pattern)) {
-					return true;
-				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Check if a path matches any include pattern.
+	 */
+	private isIncluded(path: string): boolean {
+		for (const pattern of this.settings.includePatterns) {
+			if (this.matchesPattern(path, pattern)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Check if a path matches a given pattern.
+	 */
+	private matchesPattern(path: string, pattern: string): boolean {
+		if (pattern.endsWith("/")) {
+			// Directory pattern: match if path starts with this or is exactly the dir (without trailing /)
+			if (path.startsWith(pattern) || path === pattern.slice(0, -1)) {
+				return true;
+			}
+		} else {
+			// File pattern: exact match or glob
+			if (path === pattern || this.matchGlob(path, pattern)) {
+				return true;
 			}
 		}
 		return false;
