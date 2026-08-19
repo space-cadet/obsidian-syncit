@@ -14,6 +14,16 @@ const BLOCKLISTED_FILES = [
 const BLOCKLISTED_EXTS = [".js", ".css", ".mjs", ".tmp", ".bak"];
 
 /**
+ * Core Obsidian settings files that should never be synced.
+ * These are matched by exact path under .obsidian/.
+ */
+const BLOCKLISTED_CORE_SETTINGS = [
+	".obsidian/app.json",
+	".obsidian/appearance.json",
+	".obsidian/workspace.json",
+];
+
+/**
  * Scans hidden/dot folders under .obsidian/ that Obsidian does not
  * track via app.vault.getFiles().
  */
@@ -42,9 +52,11 @@ export class HiddenPathScanner {
 
 			const files = await this.listRecursive(trimmed);
 			for (const f of files) {
-				if (!this.isBlocklisted(f.path)) {
-					results.push(f);
+				if (this.isBlocklisted(f.path)) {
+					console.warn(`[SyncIt] Blocked hidden path: ${f.path}`);
+					continue;
 				}
+				results.push(f);
 			}
 		}
 
@@ -91,6 +103,10 @@ export class HiddenPathScanner {
 		// Block any file directly inside .obsidian/plugins/<plugin-id>/
 		// Subdirectories (e.g., .obsidian/plugins/foo/sessions/) are allowed
 		if (/^\.obsidian\/plugins\/[^/]+\/[^/]+$/.test(path)) {
+			return true;
+		}
+
+		if (BLOCKLISTED_CORE_SETTINGS.includes(path)) {
 			return true;
 		}
 

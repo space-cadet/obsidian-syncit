@@ -61,6 +61,7 @@ export class VaultScanner {
 				continue;
 			}
 			if (this.isBlocklisted(file.path)) {
+				console.warn(`[SyncIt] Blocked vault path: ${file.path}`);
 				continue;
 			}
 
