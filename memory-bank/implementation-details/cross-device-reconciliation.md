@@ -4,6 +4,8 @@
 *Related Task: T13*
 *Status: Approved UI design implemented in source; real-device viewport acceptance pending*
 
+The reconciliation-specific redesign is tracked by T16b. The broader SyncIt UI and observability plan is recorded in `ui-redesign-and-observability.md`; T13 remains the data-safety and reconciliation algorithm record.
+
 ## Approved UI Layout Reference (2026-09-01)
 
 The generated mockup sheet is approved as the visual direction for the SyncIt UI. The mockup is a design reference, not evidence that the current source implementation matches it.

@@ -1,7 +1,7 @@
 # Tech Context — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 11:45 IST*
+*Last Updated: 2026-09-01 22:52 IST*
 
 ## Stack
 
@@ -53,7 +53,8 @@ obsidian-syncit/
 │   │   ├── VaultSyncEngine.ts
 │   │   ├── SyncPlan.ts
 │   │   ├── SyncIndex.ts          ← T12d: local sync index
-│   │   └── DebugLogger.ts        ← T8: debug log file writer
+│   ├── logging/
+│   │   └── SyncLogger.ts         ← T5: structured JSONL log and purge-in-place rotation
 │   ├── remote/
 │   │   └── WebDAVAdapter.ts
 │   ├── local/
@@ -66,6 +67,14 @@ obsidian-syncit/
 └── memory-bank/
     └── (project documentation)
 ```
+
+### Logging and viewer architecture
+
+- `src/logging/SyncLogger.ts` owns `.syncit/log.jsonl`, level filtering, age/size purge, and the optional plugin-directory backup.
+- `src/settings.ts` exposes log level, maximum age, maximum size, and backup settings; `src/types.ts` stores those values with defaults.
+- `src/main.ts` currently records lifecycle summaries but must persist structured per-file failures under T5a.
+- `src/ui/SyncSidebarView.ts` currently renders the embedded activity/log surface; T16c will replace the presentation with bounded Activity and Errors views backed by T5c.
+- The separate `DebugLogger` class in `src/updater/PluginUpdater.ts` is updater diagnostics and is not the sync-history logger.
 
 ## Key Type Definitions
 

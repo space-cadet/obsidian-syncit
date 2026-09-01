@@ -1,6 +1,8 @@
 # T3a Implementation: Sidebar-Native Progress Display
 
-*Last Updated: 2026-08-18 11:16 IST*
+*Last Updated: 2026-09-01 22:52 IST*
+
+> Historical baseline: this document records the original sidebar-native progress implementation. The approved mockup-based redesign and proper log/error viewer are specified in `ui-redesign-and-observability.md` and tracked by T16.
 
 ## Overview
 

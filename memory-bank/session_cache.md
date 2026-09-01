@@ -1,7 +1,7 @@
 # Session Cache
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 22:26 IST*
+*Last Updated: 2026-09-01 22:52 IST*
 
 ## Current Session
 **Started**: 2026-08-18 11:45 IST
@@ -64,6 +64,14 @@
 - Required rule: one intentional scroll owner per surface, with visible scrollbar affordances and fixed actions outside the scroll region.
 - Implemented the layout direction in `src/ui/SyncSidebarView.ts`, `src/ui/SyncProgressModal.ts`, and `styles.css`: one scroll owner per surface, fixed controls outside lists, constrained flex children, stable scrollbar gutters, and narrower-pane-safe dropdowns.
 - Verification: `pnpm test` passed (5 files, 38 tests); `pnpm build` passed; `git diff --check` passed. Real Obsidian viewport/resize acceptance is still pending.
+
+## Plan Recorded (2026-09-01)
+
+- T5 is the existing home for persistent logging and is being reconciled with the current source: `SyncLogger`, log level, maximum age, maximum size, and basic purge-in-place rotation already exist.
+- Created T5a–T5c for structured per-file error persistence, size/age rotation reliability, and bounded log data access.
+- Created T16 and T16a–T16d for the approved mockup-based UI redesign, proper Activity/Errors viewer, reconciliation table, and responsive Obsidian acceptance.
+- Added `implementation-details/ui-redesign-and-observability.md` as the implementation design record.
+- Current source gap: `SyncPlan` failures are counted and sent to the console, but are not persisted as individual `ERROR` log entries. The existing embedded log list is not yet the proper viewer described by T16c.
 
 ## Follow-up Completed (2026-08-18 13:30 IST)
 

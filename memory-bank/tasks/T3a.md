@@ -6,6 +6,8 @@
 **Created**: 2026-08-17
 **Completed**: 2026-08-17
 
+This is a historical implementation record. The sidebar-native progress behavior remains useful, but its old layout assumptions are superseded by T16, especially T16a, T16c, and T16d.
+
 ## Problem
 
 The current sync progress is shown in a modal (`SyncProgressModal`) that:

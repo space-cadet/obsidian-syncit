@@ -1,7 +1,30 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 22:18 IST*
+*Last Updated: 2026-09-01 22:52 IST*
+
+---
+
+#### 22:52:00 IST - T5/T16: Record UI redesign and log observability plan
+- Modified `memory-bank/tasks/T5.md` - Reconciled the stale logging task with the existing SyncLogger, Settings controls, size/age purge, and missing per-file error persistence
+- Created `memory-bank/tasks/T5a.md` - Recorded structured sync error reporting and persistence requirements
+- Created `memory-bank/tasks/T5b.md` - Recorded maximum log size, age rotation, backup-toggle, and rotation-test requirements
+- Created `memory-bank/tasks/T5c.md` - Recorded bounded log filtering, pagination, and large-log access requirements
+- Created `memory-bank/tasks/T16.md` - Registered the approved mockup-based UI redesign and error observability task
+- Created `memory-bank/tasks/T16a.md` - Recorded the Sync sidebar redesign
+- Created `memory-bank/tasks/T16b.md` - Recorded the reconciliation table redesign
+- Created `memory-bank/tasks/T16c.md` - Recorded the proper Activity and Errors viewer requirements
+- Created `memory-bank/tasks/T16d.md` - Recorded responsive and real-device acceptance requirements
+- Created `memory-bank/implementation-details/ui-redesign-and-observability.md` - Recorded the product surfaces, error contract, rotation behavior, scroll ownership, and verification plan
+- Modified `memory-bank/tasks.md` - Registered T5a–T5c and T16–T16d
+- Modified `memory-bank/activeContext.md` - Added the logging and UI redesign follow-ups
+- Modified `memory-bank/session_cache.md` - Recorded the plan and current source gaps
+- Created `memory-bank/sessions/2026-09-01-evening.md` - Recorded findings, plan, and documentation-only verification state
+- Modified `memory-bank/tasks/T3.md` and `memory-bank/tasks/T3a.md` - Marked the original UI records as historical foundations linked to T16
+- Modified `memory-bank/implementation-details/T3a-sidebar-progress.md` - Marked the old layout record as historical and superseded by T16
+- Modified `memory-bank/implementation-details/cross-device-reconciliation.md` - Linked the reconciliation redesign to T16b
+- Modified `memory-bank/techContext.md` - Corrected the logging source map and documented the current logger/viewer ownership
+- Verification: Documentation-only pass; source tests and build were not rerun
 
 ---
 
