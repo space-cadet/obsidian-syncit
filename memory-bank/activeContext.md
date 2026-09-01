@@ -1,6 +1,6 @@
 # Active Context
 
-*Last Updated: 2026-08-19 19:35 IST*
+*Last Updated: 2026-09-01 22:26 IST*
 
 ## Current Tasks
 - **T15: VaultScanner Hidden Folder Access** — 🔄 **NEW** (2026-08-19)
@@ -50,6 +50,7 @@
 - T9 atomic writes implemented for text files; binary-safe verification and remote orphan cleanup remain.
 - T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
 - T14 adds persisted default direction and reconciliation policy settings, plus a per-sync sidebar direction selector. Upload-only/download-only are enforced in planning; ambiguous two-way cases still use the T13 review panel for safety.
+- **UI layout follow-up**: approved [mockups](screenshots/2026-09-01-syncit-ui-scroll-owners.png) define one clear scroll owner per Sync sidebar, reconciliation review, Log tab, and progress window. The source layout now implements those scroll owners; real Obsidian viewport/resize testing remains before UI acceptance.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

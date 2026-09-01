@@ -1,7 +1,36 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 13:30 IST*
+*Last Updated: 2026-09-01 22:18 IST*
+
+---
+
+#### 22:26:00 IST - T13: Implement approved scroll-owner UI layout
+- Modified `src/ui/SyncSidebarView.ts` - Made the normal Sync content, reconciliation files, and Log entries use explicit single scroll owners with fixed controls outside the lists
+- Modified `src/ui/SyncProgressModal.ts` - Constrained the progress window to the viewport and kept title, progress, stats, and actions fixed while processed files scroll
+- Modified `styles.css` - Added flex/overflow safeguards, stable scrollbar gutters, overscroll containment, and narrow-pane-safe dropdown sizing
+- Modified `memory-bank/implementation-details/cross-device-reconciliation.md` - Recorded implementation status and remaining real-device acceptance
+- Modified `memory-bank/tasks/T13.md` - Recorded the implementation and verification results
+- Modified `memory-bank/activeContext.md` - Replaced the pending-layout note with implemented-source status and remaining viewport testing
+- Modified `memory-bank/session_cache.md` - Recorded changed files and verification
+- Verification: `pnpm test` passed with 5 files and 38 tests; `pnpm build` passed; `git diff --check` passed
+
+---
+
+#### 22:18:25 IST - T13: Save approved UI mockup screenshot
+- Created `memory-bank/screenshots/2026-09-01-syncit-ui-scroll-owners.png` - Saved the approved mockup showing one clear scroll owner for each SyncIt UI surface
+- Modified `memory-bank/implementation-details/cross-device-reconciliation.md` - Linked the saved mockup as the visual design reference
+- Modified `memory-bank/tasks/T13.md` - Linked the saved mockup from the approved UI design follow-up
+- Modified `memory-bank/activeContext.md` - Linked the saved mockup in the pending UI layout follow-up
+- Modified `memory-bank/session_cache.md` - Recorded the durable screenshot path
+
+---
+
+#### 22:13:39 IST - T13: Record approved UI mockup direction
+- Modified `memory-bank/implementation-details/cross-device-reconciliation.md` - Recorded the approved one-scroll-owner design for the Sync sidebar, reconciliation review, Log tab, and progress window
+- Modified `memory-bank/tasks/T13.md` - Added the UI design follow-up and clarified that the mockup is not implementation evidence
+- Modified `memory-bank/activeContext.md` - Recorded the pending layout redesign and viewport/resize acceptance requirement
+- Modified `memory-bank/session_cache.md` - Recorded the approved UI design reference and remaining implementation status
 
 ---
 

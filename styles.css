@@ -5,6 +5,15 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.syncit-content-container,
+.syncit-sync-tab,
+.syncit-log-tab {
+	min-height: 0;
 }
 
 .syncit-sidebar-header {
@@ -21,12 +30,33 @@
 
 .syncit-sidebar-info {
 	background: var(--background-primary-alt);
-	margin-top: auto;
+	flex: 0 0 auto;
+}
+
+.syncit-sync-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	min-width: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
+}
+
+.syncit-sidebar-reconciliation {
+	min-height: 0;
+	min-width: 0;
 }
 
 /* Progress Modal */
 .syncit-progress-modal .modal-content {
 	padding: 16px;
+}
+
+.syncit-progress-content {
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .syncit-progress-modal .syncit-header {
@@ -91,7 +121,9 @@
 	padding: 4px 8px !important;
 	font-size: var(--font-ui-small) !important;
 	cursor: pointer;
-	min-width: 180px;
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
 }
 
 .syncit-dropdown:hover {
@@ -147,6 +179,10 @@
 
 .syncit-log-list {
 	background: var(--background-primary);
+	min-height: 0;
+	min-width: 0;
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
 }
 
 .syncit-log-session {

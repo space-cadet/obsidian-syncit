@@ -2,7 +2,24 @@
 
 *Created: 2026-08-18 11:45 IST*
 *Related Task: T13*
-*Status: Planned design; source implementation not started*
+*Status: Approved UI design implemented in source; real-device viewport acceptance pending*
+
+## Approved UI Layout Reference (2026-09-01)
+
+The generated mockup sheet is approved as the visual direction for the SyncIt UI. The mockup is a design reference, not evidence that the current source implementation matches it.
+
+Reference image: [2026-09-01 SyncIt UI scroll-owner mockup](../screenshots/2026-09-01-syncit-ui-scroll-owners.png)
+
+The central layout rule is one clear scroll owner per surface:
+
+- **Sync sidebar**: fixed tabs and status header; one clearly scrollable main content region; fixed server/status information where it remains useful.
+- **Reconciliation review**: one scrollable file-decision list; `Cancel` and `Apply decisions` remain outside the list and visible.
+- **Log tab**: fixed tabs and filter/search controls; one scrollable grouped log list; status information remains outside that list.
+- **Progress window**: fixed title, progress, summary, and action buttons; only the processed-file list scrolls.
+
+Scrollable regions must have an obvious scrollbar track and thumb, enough bottom padding to reveal the last row, and no overlapping controls. Fixed controls must not be placed inside or visually over a scrollable region.
+
+The layout implementation now follows this direction. `SyncSidebarView` keeps the Sync status and server information outside a single normal-content scroll region, gives reconciliation its own constrained file-list scroll region, and gives the Log tab its own constrained grouped-log scroll region. `SyncProgressModal` constrains the modal to the viewport and keeps only the processed-file list scrollable. Real Obsidian viewport and resize verification is still required before considering the design fully accepted.
 
 ## Why the Current Algorithm Is Unsafe on a New Device
 

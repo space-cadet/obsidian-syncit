@@ -25,6 +25,7 @@ export class SyncSidebarView extends ItemView {
 	private tabsContainer!: HTMLElement;
 	private contentContainer!: HTMLElement;
 	private syncContent!: HTMLElement;
+	private syncScrollContainer!: HTMLElement;
 	private logContent!: HTMLElement;
 
 	// ── Sync tab UI ──
@@ -50,6 +51,7 @@ export class SyncSidebarView extends ItemView {
 	private logFilterBtns: Map<LogFilter, HTMLElement> = new Map();
 	private logSearchInput: HTMLInputElement | null = null;
 	private logListContainer: HTMLElement | null = null;
+	private logFooterEl: HTMLElement | null = null;
 	private logRefreshInterval: number | null = null;
 
 	// ── State ──
@@ -98,6 +100,8 @@ export class SyncSidebarView extends ItemView {
 		tabsWrapper.style.background = "var(--background-primary-alt)";
 
 		this.tabsContainer = tabsWrapper.createDiv("syncit-tabs");
+		this.tabsContainer.setAttr("role", "tablist");
+		this.tabsContainer.setAttr("aria-label", "SyncIt views");
 		this.tabsContainer.style.display = "flex";
 		this.tabsContainer.style.gap = "4px";
 		this.tabsContainer.style.flex = "1";
@@ -153,7 +157,13 @@ export class SyncSidebarView extends ItemView {
 			{ id: "log", label: "Log" },
 		];
 		for (const tab of tabs) {
-			const btn = this.tabsContainer.createEl("button", { text: tab.label });
+			const btn = this.tabsContainer.createEl("button", {
+				text: tab.label,
+				attr: {
+					role: "tab",
+					"aria-selected": String(tab.id === this.activeTab),
+				},
+			});
 			btn.style.padding = "3px 12px";
 			btn.style.fontSize = "0.85em";
 			btn.style.borderRadius = "4px";
@@ -192,8 +202,11 @@ export class SyncSidebarView extends ItemView {
 
 	private buildSyncTab(): void {
 		this.syncContent = this.contentContainer.createDiv("syncit-sync-tab");
+		this.syncContent.setAttr("role", "tabpanel");
+		this.syncContent.setAttr("aria-label", "Sync");
 		this.syncContent.style.display = "flex";
 		this.syncContent.style.flexDirection = "column";
+		this.syncContent.style.flex = "1 1 auto";
 		this.syncContent.style.height = "100%";
 		this.syncContent.style.minHeight = "0";
 		this.syncContent.style.overflow = "hidden";
@@ -219,12 +232,21 @@ export class SyncSidebarView extends ItemView {
 		this.lastSyncEl.style.marginTop = "4px";
 		this.lastSyncEl.setText("Never synced");
 
+		// Main sync content is the single scroll owner for the normal Sync tab.
+		this.syncScrollContainer = this.syncContent.createDiv("syncit-sync-scroll");
+		this.syncScrollContainer.setAttr("aria-label", "Sync content (scrollable)");
+		this.syncScrollContainer.style.flex = "1 1 auto";
+		this.syncScrollContainer.style.minHeight = "0";
+		this.syncScrollContainer.style.overflowX = "hidden";
+		this.syncScrollContainer.style.overflowY = "auto";
+
 		// Actions section
-		const actionsSection = this.syncContent.createDiv("syncit-sidebar-actions");
+		const actionsSection = this.syncScrollContainer.createDiv("syncit-sidebar-actions");
 		actionsSection.style.padding = "12px 16px";
 		actionsSection.style.display = "flex";
 		actionsSection.style.flexDirection = "column";
 		actionsSection.style.gap = "8px";
+		actionsSection.style.flex = "0 0 auto";
 
 		const modeRow = actionsSection.createDiv("syncit-mode-selector-row");
 		modeRow.style.display = "flex";
@@ -280,14 +302,14 @@ export class SyncSidebarView extends ItemView {
 		rebuildBtn.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		// Real-time sync log section
-		this.logSection = this.syncContent.createDiv("syncit-sidebar-log");
+		this.logSection = this.syncScrollContainer.createDiv("syncit-sidebar-log");
 		this.logSection.style.padding = "12px 16px";
 		this.logSection.style.borderTop = "1px solid var(--background-modifier-border)";
 		this.logSection.style.display = "flex";
 		this.logSection.style.flexDirection = "column";
-		this.logSection.style.flex = "1 1 0";
-		this.logSection.style.minHeight = "200px";
-		this.logSection.style.overflow = "hidden";
+		this.logSection.style.flex = "0 0 auto";
+		this.logSection.style.minHeight = "0";
+		this.logSection.style.overflow = "visible";
 
 		this.logHeaderEl = this.logSection.createEl("div");
 		this.logHeaderEl.style.fontSize = "0.75em";
@@ -296,9 +318,7 @@ export class SyncSidebarView extends ItemView {
 		this.logHeaderEl.setText("Recent Activity");
 
 		this.logListEl = this.logSection.createDiv();
-		this.logListEl.style.flex = "1";
-		this.logListEl.style.minHeight = "0";
-		this.logListEl.style.overflowY = "auto";
+		this.logListEl.style.flex = "0 0 auto";
 		this.logListEl.style.display = "flex";
 		this.logListEl.style.flexDirection = "column";
 		this.logListEl.style.gap = "3px";
@@ -322,9 +342,13 @@ export class SyncSidebarView extends ItemView {
 
 	private buildLogTab(): void {
 		this.logContent = this.contentContainer.createDiv("syncit-log-tab");
+		this.logContent.setAttr("role", "tabpanel");
+		this.logContent.setAttr("aria-label", "Log");
 		this.logContent.style.display = "none";
 		this.logContent.style.flexDirection = "column";
+		this.logContent.style.flex = "1 1 auto";
 		this.logContent.style.height = "100%";
+		this.logContent.style.minHeight = "0";
 		this.logContent.style.overflow = "hidden";
 
 		// Filter bar
@@ -388,9 +412,20 @@ export class SyncSidebarView extends ItemView {
 
 		// Log list
 		this.logListContainer = this.logContent.createDiv("syncit-log-list");
-		this.logListContainer.style.flex = "1";
+		this.logListContainer.setAttr("aria-label", "Sync log entries (scrollable)");
+		this.logListContainer.style.flex = "1 1 auto";
+		this.logListContainer.style.minHeight = "0";
 		this.logListContainer.style.overflowY = "auto";
 		this.logListContainer.style.padding = "8px 16px";
+		this.logListContainer.style.scrollbarGutter = "stable";
+
+		this.logFooterEl = this.logContent.createDiv("syncit-log-footer");
+		this.logFooterEl.style.flex = "0 0 auto";
+		this.logFooterEl.style.padding = "8px 16px";
+		this.logFooterEl.style.borderTop = "1px solid var(--background-modifier-border)";
+		this.logFooterEl.style.fontSize = "0.75em";
+		this.logFooterEl.style.color = "var(--text-muted)";
+		this.logFooterEl.setText("No log entries loaded");
 
 		this.updateLogFilterButtons();
 	}
@@ -423,6 +458,7 @@ export class SyncSidebarView extends ItemView {
 		this.logListContainer.empty();
 
 		if (entries.length === 0) {
+			this.logFooterEl?.setText("No matching log entries");
 			const empty = this.logListContainer.createEl("div");
 			empty.style.textAlign = "center";
 			empty.style.padding = "40px 20px";
@@ -430,6 +466,7 @@ export class SyncSidebarView extends ItemView {
 			empty.setText("No log entries");
 			return;
 		}
+		this.logFooterEl?.setText(`Showing ${entries.length} entr${entries.length === 1 ? "y" : "ies"} · Auto-refresh every 3s`);
 
 		const groups = this.groupBySession(entries);
 
@@ -679,19 +716,22 @@ export class SyncSidebarView extends ItemView {
 
 	private _renderReconciliationReview(plan: SyncPlan) {
 		this._removeReconciliationUI();
-		const container = this.syncContent;
+		const container = this.syncScrollContainer;
 		const actionsSection = container.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (!actionsSection) return;
 
 		this.reconciliationSection = container.createDiv("syncit-sidebar-reconciliation");
+		this.reconciliationSection.setAttr("aria-label", "Reconciliation review");
 		this.reconciliationSection.style.padding = "0 16px 12px";
 		this.reconciliationSection.style.display = "flex";
 		this.reconciliationSection.style.flexDirection = "column";
-		this.reconciliationSection.style.flex = "0 0 auto";
+		this.reconciliationSection.style.flex = "1 1 auto";
+		this.reconciliationSection.style.minHeight = "0";
+		this.reconciliationSection.style.overflow = "hidden";
 		container.insertBefore(this.reconciliationSection, actionsSection);
 		actionsSection.style.display = "none";
-		this.syncContent.style.overflowX = "hidden";
-		this.syncContent.style.overflowY = "auto";
+		if (this.logSection) this.logSection.style.display = "none";
+		this.syncScrollContainer.style.overflowY = "hidden";
 
 		const title = this.reconciliationSection.createEl("div");
 		title.style.fontWeight = "600";
@@ -722,9 +762,11 @@ export class SyncSidebarView extends ItemView {
 		for (const mode of modes) modeSelect.createEl("option", { value: mode.value, text: mode.label });
 
 		const itemList = this.reconciliationSection.createDiv();
-		itemList.style.flex = "0 0 auto";
-		itemList.style.maxHeight = "min(52vh, 460px)";
+		itemList.setAttr("aria-label", "Reconciliation files (scrollable)");
+		itemList.style.flex = "1 1 auto";
+		itemList.style.minHeight = "0";
 		itemList.style.overflowY = "auto";
+		itemList.style.scrollbarGutter = "stable";
 		itemList.style.border = "1px solid var(--background-modifier-border)";
 		itemList.style.borderRadius = "6px";
 		itemList.style.padding = "4px";
@@ -845,8 +887,8 @@ export class SyncSidebarView extends ItemView {
 		this.syncBtn.style.display = "block";
 		(this.syncBtn as HTMLButtonElement).disabled = false;
 		this.syncBtn.setText("Sync");
-		const container = this.syncContent;
-		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		const container = this.syncScrollContainer;
+		const actionsSection = container.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (!actionsSection) return;
 		this.completionSection = container.createDiv("syncit-sidebar-completion");
 		this.completionSection.style.padding = "0 16px 12px";
@@ -958,8 +1000,8 @@ export class SyncSidebarView extends ItemView {
 
 	private _ensureProgressUI() {
 		if (this.progressSection) return;
-		const container = this.syncContent;
-		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		const container = this.syncScrollContainer;
+		const actionsSection = container.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (!actionsSection) return;
 
 		this.progressSection = container.createDiv("syncit-sidebar-progress-section");
@@ -1052,8 +1094,8 @@ export class SyncSidebarView extends ItemView {
 	}
 
 	private _showCompletionSummary(result: SyncResult & { message: string }, elapsedMs: number) {
-		const container = this.syncContent;
-		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		const container = this.syncScrollContainer;
+		const actionsSection = container.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (!actionsSection) return;
 		this.completionSection = container.createDiv("syncit-sidebar-completion");
 		this.completionSection.style.padding = "0 16px 12px";
@@ -1118,10 +1160,8 @@ export class SyncSidebarView extends ItemView {
 		}
 		const actionsSection = this.syncContent?.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (actionsSection) actionsSection.style.display = "flex";
-		if (this.syncContent) {
-			this.syncContent.style.overflowX = "hidden";
-			this.syncContent.style.overflowY = "hidden";
-		}
+		if (this.logSection) this.logSection.style.display = "flex";
+		if (this.syncScrollContainer) this.syncScrollContainer.style.overflowY = "auto";
 	}
 
 	private _updateProgressBar() {

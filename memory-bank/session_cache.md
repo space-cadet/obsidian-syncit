@@ -1,7 +1,7 @@
 # Session Cache
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-08-18 13:30 IST*
+*Last Updated: 2026-09-01 22:26 IST*
 
 ## Current Session
 **Started**: 2026-08-18 11:45 IST
@@ -57,6 +57,13 @@
 ## System Status
 - **Memory Bank**: ✅ T13a/T13b implementation recorded
 - **Project**: T13a/T13b implemented; T13c shared manifest and tombstones remain
+
+## Approved UI Design Reference (2026-09-01)
+
+- Approved the generated SyncIt UI mockup as the visual direction for the sidebar, reconciliation review, Log tab, and progress window. Saved it at `memory-bank/screenshots/2026-09-01-syncit-ui-scroll-owners.png`.
+- Required rule: one intentional scroll owner per surface, with visible scrollbar affordances and fixed actions outside the scroll region.
+- Implemented the layout direction in `src/ui/SyncSidebarView.ts`, `src/ui/SyncProgressModal.ts`, and `styles.css`: one scroll owner per surface, fixed controls outside lists, constrained flex children, stable scrollbar gutters, and narrower-pane-safe dropdowns.
+- Verification: `pnpm test` passed (5 files, 38 tests); `pnpm build` passed; `git diff --check` passed. Real Obsidian viewport/resize acceptance is still pending.
 
 ## Follow-up Completed (2026-08-18 13:30 IST)
 

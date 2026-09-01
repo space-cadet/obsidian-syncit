@@ -53,11 +53,21 @@ export class SyncProgressModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("syncit-progress-modal");
+		contentEl.addClass("syncit-progress-content");
+		contentEl.style.display = "flex";
+		contentEl.style.flexDirection = "column";
+		contentEl.style.width = "100%";
+		contentEl.style.height = "min(80vh, 560px)";
+		contentEl.style.maxHeight = "calc(100vh - 48px)";
+		contentEl.style.minHeight = "0";
+		contentEl.style.boxSizing = "border-box";
+		contentEl.style.overflow = "hidden";
 		contentEl.style.padding = "12px";
 		contentEl.style.maxWidth = "360px";
 
 		// Title
 		const titleSection = contentEl.createDiv();
+		titleSection.style.flex = "0 0 auto";
 		titleSection.style.textAlign = "center";
 		titleSection.style.marginBottom = "8px";
 
@@ -73,6 +83,7 @@ export class SyncProgressModal extends Modal {
 
 		// Progress bar
 		const progressContainer = contentEl.createDiv();
+		progressContainer.style.flex = "0 0 auto";
 		progressContainer.style.height = "6px";
 		progressContainer.style.background = "var(--background-modifier-border)";
 		progressContainer.style.borderRadius = "3px";
@@ -87,6 +98,7 @@ export class SyncProgressModal extends Modal {
 		this.progressFillEl.style.borderRadius = "3px";
 
 		this.progressPercentEl = contentEl.createEl("div");
+		this.progressPercentEl.style.flex = "0 0 auto";
 		this.progressPercentEl.style.textAlign = "right";
 		this.progressPercentEl.style.fontSize = "0.75em";
 		this.progressPercentEl.style.color = "var(--text-muted)";
@@ -95,6 +107,7 @@ export class SyncProgressModal extends Modal {
 
 		// Stats row (horizontal, compact)
 		const statsRow = contentEl.createDiv();
+		statsRow.style.flex = "0 0 auto";
 		statsRow.style.display = "flex";
 		statsRow.style.justifyContent = "space-around";
 		statsRow.style.gap = "4px";
@@ -131,6 +144,7 @@ export class SyncProgressModal extends Modal {
 
 		// Files header
 		const filesHeader = contentEl.createEl("div");
+		filesHeader.style.flex = "0 0 auto";
 		filesHeader.style.fontSize = "0.75em";
 		filesHeader.style.color = "var(--text-faint)";
 		filesHeader.style.marginBottom = "4px";
@@ -138,14 +152,20 @@ export class SyncProgressModal extends Modal {
 
 		// File list
 		this.fileListEl = contentEl.createDiv();
-		this.fileListEl.style.maxHeight = "200px";
+		this.fileListEl.setAttr("aria-label", "Processed files (scrollable)");
+		this.fileListEl.style.flex = "1 1 auto";
+		this.fileListEl.style.minHeight = "0";
+		this.fileListEl.style.maxHeight = "none";
 		this.fileListEl.style.overflowY = "auto";
+		this.fileListEl.style.scrollbarGutter = "stable";
+		this.fileListEl.style.overscrollBehavior = "contain";
 		this.fileListEl.style.display = "flex";
 		this.fileListEl.style.flexDirection = "column";
 		this.fileListEl.style.gap = "3px";
 
 		// Buttons
 		this.btnRow = contentEl.createDiv();
+		this.btnRow.style.flex = "0 0 auto";
 		this.btnRow.style.marginTop = "10px";
 		this.btnRow.style.display = "flex";
 		this.btnRow.style.gap = "8px";
