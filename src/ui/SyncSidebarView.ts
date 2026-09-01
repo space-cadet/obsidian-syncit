@@ -25,6 +25,7 @@ export class SyncSidebarView extends ItemView {
 	private serverEl!: HTMLElement;
 	private syncButton!: HTMLButtonElement;
 	private dryRunButton!: HTMLButtonElement;
+	private rebuildButton!: HTMLButtonElement;
 	private modeButtons = new Map<ReconciliationMode, HTMLButtonElement>();
 	private progressSection: HTMLElement | null = null;
 	private progressFill: HTMLElement | null = null;
@@ -73,6 +74,10 @@ export class SyncSidebarView extends ItemView {
 		container.empty();
 		container.addClass("syncit-sidebar");
 		container.setAttr("aria-label", "SyncIt");
+		container.style.height = "100%";
+		container.style.minHeight = "0";
+		container.style.minWidth = "0";
+		container.style.overflow = "hidden";
 
 		const header = container.createDiv("syncit-sidebar-header");
 		const titleRow = header.createDiv("syncit-title-row");
@@ -141,6 +146,11 @@ export class SyncSidebarView extends ItemView {
 		statusMark.setAttr("aria-label", "Connection ready");
 
 		this.syncScroll = this.syncContent.createDiv("syncit-sync-scroll");
+		this.syncScroll.style.flex = "1 1 auto";
+		this.syncScroll.style.minHeight = "0";
+		this.syncScroll.style.maxHeight = "none";
+		this.syncScroll.style.overflowY = "auto";
+		this.syncScroll.style.overflowX = "hidden";
 		const directionCard = this.syncScroll.createDiv("syncit-card syncit-direction-card");
 		directionCard.createEl("h3", { text: "Sync direction" });
 		const modeGroup = directionCard.createDiv("syncit-mode-group");
@@ -182,6 +192,8 @@ export class SyncSidebarView extends ItemView {
 		this.syncButton.addEventListener("click", () => this.plugin.performSync(this.selectedMode));
 		this.dryRunButton = actionBar.createEl("button", { text: "Dry run" }) as HTMLButtonElement;
 		this.dryRunButton.addEventListener("click", () => this.plugin.performDryRun(this.selectedMode));
+		this.rebuildButton = this.syncContent.createEl("button", { text: "Rebuild index", cls: "syncit-rebuild-button" }) as HTMLButtonElement;
+		this.rebuildButton.addEventListener("click", () => this.plugin.rebuildIndex());
 
 		const footer = this.syncContent.createDiv("syncit-sidebar-info");
 		this.serverEl = footer.createEl("span", { text: "☁  Server: Not configured" });
@@ -567,6 +579,7 @@ export class SyncSidebarView extends ItemView {
 		this.isSyncing = syncing;
 		this.syncButton.disabled = syncing;
 		this.dryRunButton.disabled = syncing;
+		this.rebuildButton.disabled = syncing;
 	}
 
 	setScanning(): void {

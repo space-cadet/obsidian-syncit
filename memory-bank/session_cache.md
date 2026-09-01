@@ -1,7 +1,7 @@
 # Session Cache
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 22:52 IST*
+*Last Updated: 2026-09-01 23:29 IST*
 
 ## Current Session
 **Started**: 2026-08-18 11:45 IST
@@ -63,7 +63,8 @@
 - Approved the generated SyncIt UI mockup as the visual direction for the sidebar, reconciliation review, Log tab, and progress window. Saved it at `memory-bank/screenshots/2026-09-01-syncit-ui-scroll-owners.png`.
 - Required rule: one intentional scroll owner per surface, with visible scrollbar affordances and fixed actions outside the scroll region.
 - Implemented the layout direction in `src/ui/SyncSidebarView.ts`, `src/ui/SyncProgressModal.ts`, and `styles.css`: one scroll owner per surface, fixed controls outside lists, constrained flex children, stable scrollbar gutters, and narrower-pane-safe dropdowns.
-- Verification: `pnpm test` passed (5 files, 38 tests); `pnpm build` passed; `git diff --check` passed. Real Obsidian viewport/resize acceptance is still pending.
+- The follow-up restores a visible `Rebuild index` action and makes the main Sync content region explicitly vertically scrollable while keeping status, actions, and server information fixed.
+- Verification: `pnpm test` passed (7 files, 44 tests); `pnpm build` passed; `git diff --check` passed. Real Obsidian viewport/resize acceptance is still pending.
 
 ## Plan Recorded (2026-09-01)
 
@@ -71,7 +72,14 @@
 - Created T5a–T5c for structured per-file error persistence, size/age rotation reliability, and bounded log data access.
 - Created T16 and T16a–T16d for the approved mockup-based UI redesign, proper Activity/Errors viewer, reconciliation table, and responsive Obsidian acceptance.
 - Added `implementation-details/ui-redesign-and-observability.md` as the implementation design record.
-- Current source gap: `SyncPlan` failures are counted and sent to the console, but are not persisted as individual `ERROR` log entries. The existing embedded log list is not yet the proper viewer described by T16c.
+- Current source state: structured per-file failures are persisted as individual `ERROR` entries, the Activity/Errors viewer has bounded access, and T16a–T16c are implemented. Real Obsidian viewport/resize acceptance remains pending under T16d.
+
+## Follow-up Completed (2026-09-01 23:29 IST)
+
+- Restored `Rebuild index` as a visible Sync sidebar action; the `syncit-rebuild-index` command remains available.
+- Made the main Sync content region an explicit vertical scroll owner with fixed status/action/server areas.
+- Updated the T5/T16 task records and design documentation to distinguish implementation from pending real-device acceptance.
+- Verification: `pnpm test` passed (7 files, 44 tests); `pnpm build` passed; `git diff --check` passed.
 
 ## Follow-up Completed (2026-08-18 13:30 IST)
 

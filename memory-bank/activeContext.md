@@ -1,6 +1,6 @@
 # Active Context
 
-*Last Updated: 2026-09-01 22:52 IST*
+*Last Updated: 2026-09-01 23:26 IST*
 
 ## Current Tasks
 - **T15: VaultScanner Hidden Folder Access** — 🔄 **NEW** (2026-08-19)
@@ -9,10 +9,12 @@
   - Safety: hardcoded blocklist for plugin code (`.js`, `.css`, `manifest.json`, `data.json`)
   - Target: sync obsidian-ai sessions from `.obsidian/plugins/obsidian-ai/sessions/`
   - Design doc: `implementation-details/vault-scanner-hidden-folders.md`
-- **T16: SyncIt UI Redesign and Error Observability** — 🔄 **NEW** (2026-09-01)
-  - Implement the approved mockup structure rather than only the prior scroll fix
-  - Persist structured per-file sync failures and expose them in a proper Errors viewer
-  - Verify maximum-size/age rotation and runtime backup setting changes
+- **T16: SyncIt UI Redesign and Error Observability** — 🔄 **IMPLEMENTED; MANUAL ACCEPTANCE PENDING** (2026-09-01)
+  - Implemented the approved mockup structure, including Sync, Activity, Errors, reconciliation, and progress surfaces
+  - Restored a visible Rebuild index action in the Sync sidebar
+  - Made the main Sync content an explicit vertical scroll owner with fixed actions and server footer
+  - Persisted structured per-file sync failures and exposed them in the Errors viewer
+  - Verified maximum-size/age rotation and runtime backup setting changes
   - Design doc: `implementation-details/ui-redesign-and-observability.md`
 - T14: **Sync Direction Dropdown + Policy Settings UI** - ✅ **COMPLETE** (merged to main)
   - UI refactor: mode selector + Sync / Dry Run buttons (separation of intent and action)
@@ -55,9 +57,9 @@
 - T9 atomic writes implemented for text files; binary-safe verification and remote orphan cleanup remain.
 - T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
 - T14 adds persisted default direction and reconciliation policy settings, plus a per-sync sidebar direction selector. Upload-only/download-only are enforced in planning; ambiguous two-way cases still use the T13 review panel for safety.
-- **UI layout follow-up**: approved [mockups](screenshots/2026-09-01-syncit-ui-scroll-owners.png) define one clear scroll owner per Sync sidebar, reconciliation review, Log tab, and progress window. The source layout now implements those scroll owners; real Obsidian viewport/resize testing remains before UI acceptance.
-- **Logging follow-up**: T5 already has JSONL logging, age/size purge, and Settings controls, but detailed `SyncPlan` failures are not persisted individually. T5a–T5c track structured errors, rotation reliability, and bounded viewer data access.
-- **T16 UI redesign**: T3/T3a remain historical implementation records. T16 and T16a–T16d track the mockup-based redesign, proper Activity/Errors viewer, and real-device acceptance.
+- **UI layout follow-up**: approved [mockups](screenshots/2026-09-01-syncit-ui-scroll-owners.png) define one clear scroll owner per Sync sidebar, reconciliation review, Log tab, and progress window. The source layout now implements those scroll owners, including an explicit vertically scrollable Sync content region; real Obsidian viewport/resize testing remains before UI acceptance.
+- **Logging follow-up**: T5 now has structured per-file failures, JSONL persistence, age/size purge, runtime settings, backup switching, and bounded viewer access. Shared manifest/tombstone history remains separate future work.
+- **T16 UI redesign**: T16a–T16c implementation is complete and T16d remains open for real-device acceptance. Rebuild index remains available as a sidebar action and command.
 
 ## Completed Tasks (Earlier)
 - T1: Research & Scaffold ✅

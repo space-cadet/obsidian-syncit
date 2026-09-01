@@ -1,9 +1,9 @@
 # SyncIt UI Redesign and Error Observability
 
 *Created: 2026-09-01 22:45 IST*
-*Last Updated: 2026-09-01 22:45 IST*
+*Last Updated: 2026-09-01 23:26 IST*
 *Related Tasks: T5, T5a, T5b, T5c, T16, T16a, T16b, T16c, T16d*
-*Status: Plan recorded; implementation pending*
+*Status: Implementation complete; real Obsidian acceptance pending*
 
 ## Purpose
 
@@ -12,11 +12,15 @@ Record the approved redesign and the logging work required to make sync failures
 ## Current Evidence
 
 - The approved mockup is saved at `memory-bank/screenshots/2026-09-01-syncit-ui-scroll-owners.png`.
-- The current sidebar still has a two-tab `Sync`/`Log` layout with a settings gear and stacked controls.
-- Reconciliation is rendered as vertically stacked file cards rather than a review table.
-- `SyncPlan.executePlan()` collects detailed failures in memory, but `main.ts` currently persists only the final error count and sends the full list to the console.
-- `SyncLogger` already persists `.syncit/log.jsonl`, applies level filtering, purges by age and size, and can write a plugin-directory backup.
-- Settings already include log level, maximum age, maximum size, and backup controls. The existing maximum-size behavior and runtime setting changes still need focused tests and backup-path correction.
+- The redesigned sidebar now separates `Sync`, `Activity`, and `Errors`, with a visible `Rebuild index` action and an explicit vertically scrollable Sync content region.
+- Reconciliation is rendered as a table with a single scrollable file list and fixed Cancel/Apply actions.
+- `SyncPlan.executePlan()` exposes typed failures, and `main.ts` persists one sanitized `ERROR` entry per failed operation alongside the final summary.
+- `SyncLogger` persists `.syncit/log.jsonl`, supports bounded newest-first pages and filters, purges by age and size, and updates the plugin-directory backup at runtime.
+- Focused tests cover operation failures, cancellation, redaction, rotation, malformed lines, pagination, and runtime settings.
+
+## Follow-up correction
+
+The index rebuild operation remains a supported command and is now also visible in the Sync sidebar. The normal Sync panel keeps status, action controls, and server information fixed while its main content region scrolls vertically; progress, reconciliation, Activity, and Errors retain their own bounded list owners.
 
 ## Product Surfaces
 

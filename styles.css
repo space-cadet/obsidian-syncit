@@ -408,6 +408,12 @@
 	border-top: 1px solid var(--background-modifier-border);
 }
 .syncit-action-bar button { flex: 1 1 0; }
+.syncit-rebuild-button {
+	flex: 0 0 auto;
+	margin: 0 12px 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
 .syncit-sidebar-info {
 	display: flex;
 	justify-content: space-between;

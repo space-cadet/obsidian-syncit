@@ -1,9 +1,27 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 22:52 IST*
+*Last Updated: 2026-09-01 23:29 IST*
 
 ---
+
+#### 23:29:55 IST - T16: Restore index rebuild action and Sync scroll owner
+- Modified `src/ui/SyncSidebarView.ts` - Restored visible Rebuild index action and explicit vertical Sync content scroll owner
+- Modified `styles.css` - Styled the restored secondary index action
+- Modified `memory-bank/activeContext.md` - Recorded implementation state and remaining manual acceptance
+- Modified `memory-bank/tasks.md` - Updated task registry statuses for implemented T5/T16 subtasks
+- Modified `memory-bank/tasks/T5.md` - Marked structured logging and bounded access implementation complete
+- Modified `memory-bank/tasks/T5a.md` - Recorded structured failure implementation and test completion
+- Modified `memory-bank/tasks/T5b.md` - Recorded runtime rotation and backup-setting implementation and test completion
+- Modified `memory-bank/tasks/T5c.md` - Recorded bounded viewer implementation and test completion
+- Modified `memory-bank/tasks/T16.md` - Marked T16a-T16c implemented and T16d manual acceptance pending
+- Modified `memory-bank/tasks/T16a.md` - Recorded Sync sidebar implementation with narrow-pane acceptance pending
+- Modified `memory-bank/tasks/T16b.md` - Recorded reconciliation implementation with device acceptance pending
+- Modified `memory-bank/tasks/T16c.md` - Recorded Activity and Errors viewer implementation
+- Modified `memory-bank/tasks/T16d.md` - Kept real Obsidian acceptance pending
+- Modified `memory-bank/implementation-details/ui-redesign-and-observability.md` - Recorded visible index rebuild and vertical Sync scroll follow-up
+- Modified `memory-bank/session_cache.md` - Recorded follow-up implementation and verification
+- Modified `memory-bank/sessions/2026-09-01-evening.md` - Added implementation follow-up and verification
 
 #### 22:52:00 IST - T5/T16: Record UI redesign and log observability plan
 - Modified `memory-bank/tasks/T5.md` - Reconciled the stale logging task with the existing SyncLogger, Settings controls, size/age purge, and missing per-file error persistence

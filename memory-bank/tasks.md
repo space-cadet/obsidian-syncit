@@ -1,7 +1,7 @@
 # Memory Bank — Obsidian SyncIt
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 22:52 IST*
+*Last Updated: 2026-09-01 23:29 IST*
 
 ## Overview
 
@@ -12,18 +12,18 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | ID | Title | Status | Priority | Started | Dependencies | Details |
 |----|-------|--------|----------|---------|--------------|---------|
 | T5 | Sync History Log | 🔄 | P1 | — | T1, T13 | [Details](tasks/T5.md) |
-| T5a | Structured Sync Error Reporting | 🔄 | P0 | 2026-09-01 | T5, T12b | [Details](tasks/T5a.md) |
-| T5b | Log Size and Rotation Reliability | 🔄 | P1 | 2026-09-01 | T5 | [Details](tasks/T5b.md) |
-| T5c | Bounded Log Data Access | 🔄 | P1 | 2026-09-01 | T5, T5a, T5b | [Details](tasks/T5c.md) |
+| T5a | Structured Sync Error Reporting | ✅ | P0 | 2026-09-01 | T5, T12b | [Details](tasks/T5a.md) |
+| T5b | Log Size and Rotation Reliability | ✅ | P1 | 2026-09-01 | T5 | [Details](tasks/T5b.md) |
+| T5c | Bounded Log Data Access | ✅ | P1 | 2026-09-01 | T5, T5a, T5b | [Details](tasks/T5c.md) |
 | T6 | Selective Sync | 🔄 | P1 | — | T1, T13 | [Details](tasks/T6.md) |
 | T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | [Details](tasks/T7.md) |
 | T10 | Trash Mode and Snapshots | 🔄 | P1 | — | T1, T13 | [Details](tasks/T10.md) |
 | T11 | Chunked Downloads | 🔄 | P2 | — | T1 | [Details](tasks/T11.md) |
 | **T15** | **VaultScanner Hidden Folder Access** | **🔄 NEW** | **P1** | **2026-08-19** | **T1** | **[Details](tasks/T15.md)** |
 | T16 | SyncIt UI Redesign and Error Observability | 🔄 | P1 | 2026-09-01 | T3, T3a, T5, T13, T14 | [Details](tasks/T16.md) |
-| T16a | Redesign Sync Sidebar | 🔄 | P1 | 2026-09-01 | T16 | [Details](tasks/T16a.md) |
-| T16b | Redesign Reconciliation Review | 🔄 | P0 | 2026-09-01 | T16, T13 | [Details](tasks/T16b.md) |
-| T16c | Proper Activity and Errors Log Viewer | 🔄 | P0 | 2026-09-01 | T16, T5a, T5b, T5c | [Details](tasks/T16c.md) |
+| T16a | Redesign Sync Sidebar | ✅ | P1 | 2026-09-01 | T16 | [Details](tasks/T16a.md) |
+| T16b | Redesign Reconciliation Review | ✅ | P0 | 2026-09-01 | T16, T13 | [Details](tasks/T16b.md) |
+| T16c | Proper Activity and Errors Log Viewer | ✅ | P0 | 2026-09-01 | T16, T5a, T5b, T5c | [Details](tasks/T16c.md) |
 | T16d | Responsive UI and Obsidian Acceptance | 🔄 | P1 | 2026-09-01 | T16a, T16b, T16c | [Details](tasks/T16d.md) |
 
 ## Completed Tasks
@@ -47,7 +47,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 ## Status Summary
 
-- **Active**: 14 (T5–T7, T10–T11, T15–T16d)
-- **Completed**: 15 (T1–T4, T8–T9, T12 + T12a–T12d, T13–T14)
+- **Active**: 8 (T5–T7, T10–T11, T15, T16, T16d)
+- **Completed**: 21 (T1–T4, T8–T9, T12 + T12a–T12d, T13–T14, T5a–T5c, T16a–T16c)
 - **Paused**: 0
 - **Total**: 29
