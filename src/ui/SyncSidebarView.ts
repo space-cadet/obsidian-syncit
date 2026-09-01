@@ -680,17 +680,18 @@ export class SyncSidebarView extends ItemView {
 	private _renderReconciliationReview(plan: SyncPlan) {
 		this._removeReconciliationUI();
 		const container = this.syncContent;
-		const actionsSection = container.querySelector(".syncit-sidebar-actions");
+		const actionsSection = container.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
 		if (!actionsSection) return;
 
 		this.reconciliationSection = container.createDiv("syncit-sidebar-reconciliation");
 		this.reconciliationSection.style.padding = "0 16px 12px";
 		this.reconciliationSection.style.display = "flex";
 		this.reconciliationSection.style.flexDirection = "column";
-		this.reconciliationSection.style.flex = "1 1 0";
-		this.reconciliationSection.style.minHeight = "0";
-		this.reconciliationSection.style.overflow = "hidden";
+		this.reconciliationSection.style.flex = "0 0 auto";
 		container.insertBefore(this.reconciliationSection, actionsSection);
+		actionsSection.style.display = "none";
+		this.syncContent.style.overflowX = "hidden";
+		this.syncContent.style.overflowY = "auto";
 
 		const title = this.reconciliationSection.createEl("div");
 		title.style.fontWeight = "600";
@@ -721,8 +722,8 @@ export class SyncSidebarView extends ItemView {
 		for (const mode of modes) modeSelect.createEl("option", { value: mode.value, text: mode.label });
 
 		const itemList = this.reconciliationSection.createDiv();
-		itemList.style.flex = "1 1 0";
-		itemList.style.minHeight = "0";
+		itemList.style.flex = "0 0 auto";
+		itemList.style.maxHeight = "min(52vh, 460px)";
 		itemList.style.overflowY = "auto";
 		itemList.style.border = "1px solid var(--background-modifier-border)";
 		itemList.style.borderRadius = "6px";
@@ -1114,6 +1115,12 @@ export class SyncSidebarView extends ItemView {
 		if (this.reconciliationSection) {
 			this.reconciliationSection.remove();
 			this.reconciliationSection = null;
+		}
+		const actionsSection = this.syncContent?.querySelector(".syncit-sidebar-actions") as HTMLElement | null;
+		if (actionsSection) actionsSection.style.display = "flex";
+		if (this.syncContent) {
+			this.syncContent.style.overflowX = "hidden";
+			this.syncContent.style.overflowY = "hidden";
 		}
 	}
 
