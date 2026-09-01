@@ -3,6 +3,7 @@ import type {
 	ReconciliationDecision,
 	ReconciliationMode,
 	SyncItSettings,
+	SyncOperationFailure,
 	SyncPlan,
 } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
@@ -237,6 +238,18 @@ export default class SyncItPlugin extends Plugin {
 			.join("|");
 	}
 
+	private async persistOperationFailures(sessionId: string, failures: SyncOperationFailure[]): Promise<void> {
+		for (const failure of failures) {
+			await this.logger?.error("sync-operation", `${failure.operation} failed: ${failure.path} — ${failure.message}`, {
+				...failure.details,
+				operation: failure.operation,
+				path: failure.path,
+				phase: failure.phase,
+				sessionId,
+			});
+		}
+	}
+
 	async performSync(mode: ReconciliationMode = this.settings.syncDirection) {
 		if (this.isSyncing) {
 			new Notice("SyncIt: Sync already in progress");
@@ -249,10 +262,11 @@ export default class SyncItPlugin extends Plugin {
 		}
 
 		this.isSyncing = true;
+		const sessionId = new Date().toISOString();
 		this.updateStatusBar("Syncing...");
 		this._sidebarView?.setSyncing(true);
 
-		await this.logger?.info("sync", "Sync started", { mode });
+		await this.logger?.info("sync", "Sync started", { mode, sessionId });
 
 		// T3a: Open sidebar to show progress
 		this.openSidebarView();
@@ -326,6 +340,7 @@ export default class SyncItPlugin extends Plugin {
 			const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 
 			await this.logger?.info("sync", "Sync plan built", {
+				sessionId,
 				uploads: plan.uploads.length,
 				downloads: plan.downloads.length,
 				deletes: plan.localDeletes.length + plan.remoteDeletes.length,
@@ -339,9 +354,10 @@ export default class SyncItPlugin extends Plugin {
 					uploaded: 0,
 					downloaded: 0,
 					deleted: 0,
-					conflicts: 0,
+						conflicts: 0,
 					skipped: plan.unchanged,
 					errors: [],
+					failures: [],
 					uploadedBytes: 0,
 					downloadedBytes: 0,
 					message: "Already up to date",
@@ -362,6 +378,7 @@ export default class SyncItPlugin extends Plugin {
 			);
 
 			// Report results
+			await this.persistOperationFailures(sessionId, result.failures ?? []);
 			const messages: string[] = [];
 			if (result.uploaded > 0) messages.push(`${result.uploaded} uploaded`);
 			if (result.downloaded > 0) messages.push(`${result.downloaded} downloaded`);
@@ -369,12 +386,14 @@ export default class SyncItPlugin extends Plugin {
 			if (result.errors.length > 0) messages.push(`${result.errors.length} errors`);
 
 			await this.logger?.info("sync", "Sync completed", {
+				sessionId,
 				uploaded: result.uploaded,
 				downloaded: result.downloaded,
 				deleted: result.deleted,
 				conflicts: result.conflicts,
 				skipped: result.skipped,
 				errors: result.errors.length,
+				failureRecords: result.failures?.length ?? 0,
 				uploadedBytes: result.uploadedBytes,
 				downloadedBytes: result.downloadedBytes,
 			});
@@ -419,7 +438,7 @@ export default class SyncItPlugin extends Plugin {
 			}
 			console.error("SyncIt sync failed:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			await this.logger?.error("sync", "Sync failed", { error: errorMsg });
+			await this.logger?.error("sync", "Sync failed", { error: errorMsg, sessionId });
 			this._sidebarView?.setError(errorMsg);
 			new Notice(`SyncIt: Sync failed — ${errorMsg}`, 10000);
 			this.updateStatusBar("Sync failed");
@@ -446,13 +465,14 @@ export default class SyncItPlugin extends Plugin {
 
 		this.isSyncing = true;
 		this.pendingReconciliation = null;
+		const sessionId = new Date().toISOString();
 		this.updateStatusBar("Dry run...");
 		this._sidebarView?.setSyncing(true);
 		this.openSidebarView();
 		this._sidebarView?.setScanning();
 		new Notice("SyncIt: Dry run started — previewing changes", 3000);
 
-		await this.logger?.info("sync", "Dry run started", { mode });
+		await this.logger?.info("sync", "Dry run started", { mode, sessionId });
 
 		try {
 			if (!this.adapter || !this.scanner) {
@@ -533,6 +553,7 @@ export default class SyncItPlugin extends Plugin {
 					conflicts: 0,
 					skipped: plan.unchanged,
 					errors: [],
+					failures: [],
 					uploadedBytes: 0,
 					downloadedBytes: 0,
 					message: "Already up to date",
@@ -562,9 +583,10 @@ export default class SyncItPlugin extends Plugin {
 				uploaded: resolvedPlan.uploads.length,
 				downloaded: resolvedPlan.downloads.length,
 				deleted: resolvedPlan.localDeletes.length + resolvedPlan.remoteDeletes.length,
-				conflicts: plan.conflicts.length,
-				skipped: plan.unchanged,
-				errors: [],
+					conflicts: plan.conflicts.length,
+					skipped: plan.unchanged,
+					errors: [],
+					failures: [],
 				uploadedBytes: plan.uploadSize,
 				downloadedBytes: plan.downloadSize,
 				message: `${plan.uploads.length}↑ ${plan.downloads.length}↓ ${plan.localDeletes.length + plan.remoteDeletes.length}🗑 ${plan.conflicts.length}⚠️`,

@@ -118,9 +118,26 @@ export interface SyncResult {
 	conflicts: number;
 	skipped: number;
 	errors: string[];
+	/** Structured failures, one for each failed file operation. */
+	failures?: SyncOperationFailure[];
 	// Size totals for progress
 	uploadedBytes: number;
 	downloadedBytes: number;
+}
+
+export type SyncOperation =
+	| "upload"
+	| "download"
+	| "conflict"
+	| "local-delete"
+	| "remote-delete";
+
+export interface SyncOperationFailure {
+	operation: SyncOperation;
+	path: string;
+	phase: "transfer" | "delete";
+	message: string;
+	details: Record<string, unknown>;
 }
 
 export interface WebDAVConfig {

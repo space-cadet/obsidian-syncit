@@ -383,7 +383,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.logLevel = value as "ERROR" | "WARNING" | "INFO" | "DEBUG";
 						await this.plugin.saveSettings();
-						this.plugin.logger?.updateSettings({ minLevel: this.plugin.settings.logLevel });
+						await this.plugin.logger?.updateSettings({ minLevel: this.plugin.settings.logLevel });
 					});
 			});
 
@@ -399,7 +399,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 						this.plugin.settings.logMaxAgeDays = value;
 						maxAgeSetting.setDesc(`Automatically purge log entries older than this many days. Current: ${value} days`);
 						await this.plugin.saveSettings();
-						this.plugin.logger?.updateSettings({ maxAgeDays: value });
+						await this.plugin.logger?.updateSettings({ maxAgeDays: value });
 					})
 			);
 
@@ -415,7 +415,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 						this.plugin.settings.logMaxSizeMB = value;
 						maxSizeSetting.setDesc(`Rotate log when it exceeds this size in MB. Older entries are purged first. Current: ${value} MB`);
 						await this.plugin.saveSettings();
-						this.plugin.logger?.updateSettings({ maxSizeMB: value });
+						await this.plugin.logger?.updateSettings({ maxSizeMB: value });
 					})
 			);
 
@@ -428,7 +428,7 @@ export class SyncItSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.logBackupInPluginDir = value;
 						await this.plugin.saveSettings();
-						this.plugin.logger?.updateSettings({ keepBackup: value });
+						await this.plugin.logger?.updateSettings({ keepBackup: value });
 					})
 			);
 	}

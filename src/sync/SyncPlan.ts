@@ -9,6 +9,7 @@ import type {
 import type { SyncIndexManager } from "./SyncIndex";
 import { WebDAVAdapter, SyncCancelledError } from "../remote/WebDAVAdapter";
 import type { VaultScanner } from "../local/VaultScanner";
+import { sanitizeLogText } from "../logging/SyncLogger";
 
 /**
  * Builds and executes sync plans by comparing local and remote file states.
@@ -245,9 +246,11 @@ export class SyncPlanBuilder {
 			conflicts: 0,
 			skipped: plan.unchanged,
 			errors: [],
+			failures: [],
 			uploadedBytes: 0,
 			downloadedBytes: 0,
 		};
+		const failures = result.failures ?? [];
 
 		const totalOps = plan.uploads.length + plan.downloads.length + plan.localDeletes.length + plan.conflicts.length + plan.remoteDeletes.length;
 		let completedOps = 0;
@@ -256,6 +259,24 @@ export class SyncPlanBuilder {
 		const reportProgress = (operation: string, path: string, bytesTransferred: number) => {
 			completedOps++;
 			onProgress?.(completedOps, totalOps, operation, path, bytesTransferred, totalTransferBytes);
+		};
+		const recordFailure = (
+			operation: "upload" | "download" | "conflict" | "local-delete" | "remote-delete",
+			path: string,
+			phase: "transfer" | "delete",
+			error: unknown,
+		) => {
+			const rawMessage = error instanceof Error ? error.message : String(error);
+			const message = sanitizeLogText(rawMessage);
+			const failure = {
+				operation,
+				path,
+				phase,
+				message,
+				details: { operation, phase },
+			};
+			failures.push(failure);
+			result.errors.push(`${operation} failed: ${path} — ${message}`);
 		};
 
 		// Handle uploads in parallel
@@ -271,8 +292,8 @@ export class SyncPlanBuilder {
 					reportProgress("uploading", file.targetPath ?? file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
-					result.errors.push(`Upload failed: ${file.path} — ${error}`);
-					reportProgress("uploading (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+					recordFailure("upload", file.path, "transfer", error);
+					reportProgress("error:upload", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
 		}
@@ -290,8 +311,8 @@ export class SyncPlanBuilder {
 					reportProgress("downloading", file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
-					result.errors.push(`Download failed: ${file.path} — ${error}`);
-					reportProgress("downloading (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+					recordFailure("download", file.path, "transfer", error);
+					reportProgress("error:download", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
 		}
@@ -307,19 +328,19 @@ export class SyncPlanBuilder {
 						await this.adapter.writeFile(local.path, content);
 						result.uploaded++;
 						result.uploadedBytes += local.size;
-						reportProgress("uploading (conflict)", local.path, result.uploadedBytes + result.downloadedBytes);
+						reportProgress("conflict:upload", local.path, result.uploadedBytes + result.downloadedBytes);
 					} else {
 						const content = await this.adapter.readFile(remote.path);
 						await this.scanner.writeFile(remote.path, content);
 						result.downloaded++;
 						result.downloadedBytes += remote.size;
-						reportProgress("downloading (conflict)", remote.path, result.uploadedBytes + result.downloadedBytes);
+						reportProgress("conflict:download", remote.path, result.uploadedBytes + result.downloadedBytes);
 					}
 					result.conflicts++;
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
-					result.errors.push(`Conflict resolution failed: ${local.path} — ${error}`);
-					reportProgress("conflict (error)", local.path, result.uploadedBytes + result.downloadedBytes);
+					recordFailure("conflict", local.path, "transfer", error);
+					reportProgress("error:conflict", local.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			});
 		}
@@ -335,8 +356,8 @@ export class SyncPlanBuilder {
 					reportProgress("deleting-local", file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
-					result.errors.push(`Local delete failed: ${file.path} — ${error}`);
-					reportProgress("delete-local (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+					recordFailure("local-delete", file.path, "delete", error);
+					reportProgress("error:local-delete", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			}
 		}
@@ -352,8 +373,8 @@ export class SyncPlanBuilder {
 					reportProgress("deleting", file.path, result.uploadedBytes + result.downloadedBytes);
 				} catch (error) {
 					if (error instanceof SyncCancelledError) throw error;
-					result.errors.push(`Delete failed: ${file.path} — ${error}`);
-					reportProgress("delete (error)", file.path, result.uploadedBytes + result.downloadedBytes);
+					recordFailure("remote-delete", file.path, "delete", error);
+					reportProgress("error:remote-delete", file.path, result.uploadedBytes + result.downloadedBytes);
 				}
 			}
 		}
