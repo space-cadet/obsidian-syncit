@@ -116,6 +116,7 @@ export class SyncSidebarView extends ItemView {
 		// ── Content container ──
 		this.contentContainer = container.createDiv("syncit-content-container");
 		this.contentContainer.style.flex = "1";
+		this.contentContainer.style.minHeight = "0";
 		this.contentContainer.style.overflow = "hidden";
 		this.contentContainer.style.display = "flex";
 		this.contentContainer.style.flexDirection = "column";
@@ -194,6 +195,7 @@ export class SyncSidebarView extends ItemView {
 		this.syncContent.style.display = "flex";
 		this.syncContent.style.flexDirection = "column";
 		this.syncContent.style.height = "100%";
+		this.syncContent.style.minHeight = "0";
 		this.syncContent.style.overflow = "hidden";
 
 		// Status section
@@ -683,6 +685,11 @@ export class SyncSidebarView extends ItemView {
 
 		this.reconciliationSection = container.createDiv("syncit-sidebar-reconciliation");
 		this.reconciliationSection.style.padding = "0 16px 12px";
+		this.reconciliationSection.style.display = "flex";
+		this.reconciliationSection.style.flexDirection = "column";
+		this.reconciliationSection.style.flex = "1 1 0";
+		this.reconciliationSection.style.minHeight = "0";
+		this.reconciliationSection.style.overflow = "hidden";
 		container.insertBefore(this.reconciliationSection, actionsSection);
 
 		const title = this.reconciliationSection.createEl("div");
@@ -714,7 +721,8 @@ export class SyncSidebarView extends ItemView {
 		for (const mode of modes) modeSelect.createEl("option", { value: mode.value, text: mode.label });
 
 		const itemList = this.reconciliationSection.createDiv();
-		itemList.style.maxHeight = "min(52vh, 460px)";
+		itemList.style.flex = "1 1 0";
+		itemList.style.minHeight = "0";
 		itemList.style.overflowY = "auto";
 		itemList.style.border = "1px solid var(--background-modifier-border)";
 		itemList.style.borderRadius = "6px";
