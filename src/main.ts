@@ -546,7 +546,7 @@ export default class SyncItPlugin extends Plugin {
 			const totalOps = resolvedPlan.uploads.length + resolvedPlan.downloads.length + resolvedPlan.localDeletes.length + resolvedPlan.conflicts.length + resolvedPlan.remoteDeletes.length;
 
 			if (totalOps === 0) {
-				this._sidebarView?.finish({
+				this._sidebarView?.showDryRunResult({
 					uploaded: 0,
 					downloaded: 0,
 					deleted: 0,
@@ -583,13 +583,13 @@ export default class SyncItPlugin extends Plugin {
 				uploaded: resolvedPlan.uploads.length,
 				downloaded: resolvedPlan.downloads.length,
 				deleted: resolvedPlan.localDeletes.length + resolvedPlan.remoteDeletes.length,
-					conflicts: plan.conflicts.length,
-					skipped: plan.unchanged,
-					errors: [],
-					failures: [],
-				uploadedBytes: plan.uploadSize,
-				downloadedBytes: plan.downloadSize,
-				message: `${plan.uploads.length}↑ ${plan.downloads.length}↓ ${plan.localDeletes.length + plan.remoteDeletes.length}🗑 ${plan.conflicts.length}⚠️`,
+				conflicts: resolvedPlan.conflicts.length,
+				skipped: resolvedPlan.unchanged,
+				errors: [],
+				failures: [],
+				uploadedBytes: resolvedPlan.uploadSize,
+				downloadedBytes: resolvedPlan.downloadSize,
+				message: `${resolvedPlan.uploads.length}↑ ${resolvedPlan.downloads.length}↓ ${resolvedPlan.localDeletes.length + resolvedPlan.remoteDeletes.length}🗑 ${resolvedPlan.conflicts.length}⚠️`,
 			};
 
 			this._sidebarView?.showDryRunResult(result);

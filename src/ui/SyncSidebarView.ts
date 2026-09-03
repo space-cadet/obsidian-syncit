@@ -647,9 +647,37 @@ export class SyncSidebarView extends ItemView {
 			item.createEl("strong", { text: String(value) });
 			item.createEl("small", { text: String(label) });
 		}
+		if (dryRun && this.currentPlan) this.renderDryRunPlan(this.completionSection, this.currentPlan);
 		if (result.errors.length > 0) {
 			const errorsButton = this.completionSection.createEl("button", { text: `View ${result.errors.length} errors` });
 			errorsButton.addEventListener("click", () => this.showTab("errors"));
+		}
+	}
+
+	private renderDryRunPlan(parent: HTMLElement, plan: SyncPlan): void {
+		const operations = [
+			...plan.uploads.map(file => ({ icon: "↑", label: "Upload", path: file.path })),
+			...plan.downloads.map(file => ({ icon: "↓", label: "Download", path: file.path })),
+			...plan.conflicts.map(conflict => ({ icon: "⚠", label: "Conflict", path: conflict.local.path })),
+			...plan.localDeletes.map(file => ({ icon: "▧", label: "Delete locally", path: file.path })),
+			...plan.remoteDeletes.map(file => ({ icon: "▧", label: "Delete remotely", path: file.path })),
+		];
+		const section = parent.createDiv("syncit-dry-run-plan");
+		const heading = section.createDiv("syncit-dry-run-plan-heading");
+		heading.createEl("h3", { text: "Planned changes" });
+		heading.createEl("span", { text: `${operations.length} file(s)`, cls: "syncit-dry-run-plan-count" });
+		section.createEl("p", { text: "No files were changed. Review the operations below before running Sync." });
+		const list = section.createDiv("syncit-dry-run-plan-list");
+		list.setAttr("role", "list");
+		list.setAttr("aria-label", "Dry-run planned changes");
+		for (const operation of operations) {
+			const row = list.createDiv("syncit-dry-run-plan-row");
+			row.setAttr("role", "listitem");
+			row.createEl("span", { text: operation.icon, cls: "syncit-dry-run-plan-icon", attr: { "aria-hidden": "true" } });
+			const info = row.createDiv();
+			info.createEl("span", { text: operation.path, cls: "syncit-dry-run-plan-path", attr: { title: operation.path } });
+			info.createEl("small", { text: operation.label });
+			row.createEl("strong", { text: operation.label, cls: "syncit-dry-run-plan-operation" });
 		}
 	}
 
