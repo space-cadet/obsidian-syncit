@@ -1,9 +1,24 @@
 # Edit History
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 23:31 IST*
+*Last Updated: 2026-09-03 12:31 IST*
 
 ---
+
+#### 12:31:34 IST - T5d: Record dedicated sync operations follow-up
+- Created `memory-bank/tasks/T5d.md` - Defined the separate per-file sync operations audit record and acceptance criteria
+- Created `memory-bank/implementation-details/sync-operations-record.md` - Defined storage separation, schema, lifecycle, retention, and viewer integration
+- Modified `memory-bank/tasks/T5.md` - Corrected the partial implementation status and separated general logging, diagnostics, and operation history
+- Modified `memory-bank/tasks/T16.md` - Added the dedicated operation-record dependency and acceptance gap
+- Modified `memory-bank/tasks/T16c.md` - Marked the viewer data-source handoff as pending T5d
+- Modified `memory-bank/tasks/T8.md` - Recorded the pushed persistent and bounded dry-run plan list
+- Modified `memory-bank/tasks.md` - Registered T5d and updated task counts
+- Modified `memory-bank/activeContext.md` - Recorded T5d and the current source/documentation state
+- Modified `memory-bank/session_cache.md` - Started the September 3 follow-up session and recorded verification
+- Created `memory-bank/sessions/2026-09-03-midday.md` - Recorded the dry-run UI work, log distinction, and approved next implementation
+- Modified `memory-bank/implementation-details/ui-redesign-and-observability.md` - Added the separate operations-record contract and current source gap
+
+----
 
 #### 23:29:55 IST - T16: Restore index rebuild action and Sync scroll owner
 - Modified `src/ui/SyncSidebarView.ts` - Restored visible Rebuild index action and explicit vertical Sync content scroll owner

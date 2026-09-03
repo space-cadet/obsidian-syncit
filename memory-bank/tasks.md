@@ -15,6 +15,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 | T5a | Structured Sync Error Reporting | ✅ | P0 | 2026-09-01 | T5, T12b | [Details](tasks/T5a.md) |
 | T5b | Log Size and Rotation Reliability | ✅ | P1 | 2026-09-01 | T5 | [Details](tasks/T5b.md) |
 | T5c | Bounded Log Data Access | ✅ | P1 | 2026-09-01 | T5, T5a, T5b | [Details](tasks/T5c.md) |
+| T5d | Dedicated Sync Operations Record | 🔄 | P1 | 2026-09-03 | T5, T5a, T5b, T5c | [Details](tasks/T5d.md) |
 | T6 | Selective Sync | 🔄 | P1 | — | T1, T13 | [Details](tasks/T6.md) |
 | T7 | Sync Pause and Resume | 🔄 | P1 | — | T1 | [Details](tasks/T7.md) |
 | T10 | Trash Mode and Snapshots | 🔄 | P1 | — | T1, T13 | [Details](tasks/T10.md) |
@@ -47,7 +48,7 @@ Obsidian SyncIt — A focused, lightweight WebDAV vault sync plugin for Obsidian
 
 ## Status Summary
 
-- **Active**: 8 (T5–T7, T10–T11, T15, T16, T16d)
+- **Active**: 9 (T5, T5d–T7, T10–T11, T15, T16, T16d)
 - **Completed**: 21 (T1–T4, T8–T9, T12 + T12a–T12d, T13–T14, T5a–T5c, T16a–T16c)
 - **Paused**: 0
-- **Total**: 29
+- **Total**: 30

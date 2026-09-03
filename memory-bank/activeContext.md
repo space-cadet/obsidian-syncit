@@ -1,6 +1,6 @@
 # Active Context
 
-*Last Updated: 2026-09-01 23:31 IST*
+*Last Updated: 2026-09-03 12:31 IST*
 
 ## Current Tasks
 - **T15: VaultScanner Hidden Folder Access** — 🔄 **NEW** (2026-08-19)
@@ -14,8 +14,13 @@
   - Restored a visible Rebuild index action in the Sync sidebar
   - Made the main Sync content an explicit vertical scroll owner with fixed actions and server footer
   - Persisted structured per-file sync failures and exposed them in the Errors viewer
+  - Dry-run results now retain a bounded per-file Planned changes list; a dedicated persistent operations record is still pending under T5d
   - Verified maximum-size/age rotation and runtime backup setting changes
   - Design doc: `implementation-details/ui-redesign-and-observability.md`
+- **T5d: Dedicated Sync Operations Record** — 🔄 **PLANNED** (2026-09-03)
+  - Separate user-facing per-file audit record from `debug.log` and the mixed `.syncit/log.jsonl` application log
+  - Persist successful and failed operation outcomes with session/path metadata and safe retention
+  - Design doc: `implementation-details/sync-operations-record.md`
 - T14: **Sync Direction Dropdown + Policy Settings UI** - ✅ **COMPLETE** (merged to main)
   - UI refactor: mode selector + Sync / Dry Run buttons (separation of intent and action)
   - Replaces the 6-option dropdown with a cleaner 3-mode selector + two action buttons
@@ -58,7 +63,7 @@
 - T13a/T13b merged but reconciliation panel will be hidden behind policy setting (T14e).
 - T14 adds persisted default direction and reconciliation policy settings, plus a per-sync sidebar direction selector. Upload-only/download-only are enforced in planning; ambiguous two-way cases still use the T13 review panel for safety.
 - **UI layout follow-up**: approved [mockups](screenshots/2026-09-01-syncit-ui-scroll-owners.png) define one clear scroll owner per Sync sidebar, reconciliation review, Log tab, and progress window. The source layout now implements those scroll owners, including an explicit vertically scrollable Sync content region; real Obsidian viewport/resize testing remains before UI acceptance.
-- **Logging follow-up**: T5 now has structured per-file failures, JSONL persistence, age/size purge, runtime settings, backup switching, and bounded viewer access. Shared manifest/tombstone history remains separate future work.
+- **Logging follow-up**: T5 has structured per-file failures, JSONL persistence, age/size purge, runtime settings, backup switching, and bounded viewer access. Successful per-file operations still need the separate T5d record; shared manifest/tombstone history remains separate future work.
 - **T16 UI redesign**: T16a–T16c implementation is complete and T16d remains open for real-device acceptance. Rebuild index remains available as a sidebar action and command.
 
 ## Completed Tasks (Earlier)

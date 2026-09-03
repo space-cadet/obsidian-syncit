@@ -1,9 +1,15 @@
 # Session Cache
 
 *Created: 2026-08-17 12:55 IST*
-*Last Updated: 2026-09-01 23:31 IST*
+*Last Updated: 2026-09-03 12:37 IST*
 
 ## Current Session
+**Started**: 2026-09-03 12:31 IST
+**Ended**: 2026-09-03 12:37 IST
+**Focus Task**: T5d (Dedicated Sync Operations Record)
+**Status**: ✅ Documentation updated; implementation pending
+
+## Previous Session Record
 **Started**: 2026-08-18 11:45 IST
 **Ended**: 2026-08-18 12:04 IST
 **Focus Task**: T13 (Safe Cross-Device Reconciliation and Shared Sync State)
@@ -80,6 +86,15 @@
 - Made the main Sync content region an explicit vertical scroll owner with fixed status/action/server areas.
 - Updated the T5/T16 task records and design documentation to distinguish implementation from pending real-device acceptance.
 - Verification: `pnpm test` passed (7 files, 44 tests); `pnpm build` passed; `git diff --check` passed.
+
+## Follow-up Recorded (2026-09-03 12:31 IST)
+
+- Pulled `origin/main` to `67b1a72`, then pushed dry-run UI fixes as `f41d112` and `198fee0`.
+- The dry-run result now shows all planned file operations in a bounded scrollable list.
+- Confirmed that `debug.log`, the mixed `.syncit/log.jsonl` application log, and the missing dedicated sync operations record are separate concerns.
+- Added T5d and its implementation design for the missing successful per-file operation audit trail.
+- Verification after source changes: `pnpm test` passed (7 files, 44 tests); `pnpm build` passed; `git diff --check` passed.
+- No source implementation of T5d was performed in this documentation pass.
 
 ## Follow-up Completed (2026-08-18 13:30 IST)
 

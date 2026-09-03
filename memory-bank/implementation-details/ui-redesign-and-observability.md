@@ -1,9 +1,9 @@
 # SyncIt UI Redesign and Error Observability
 
 *Created: 2026-09-01 22:45 IST*
-*Last Updated: 2026-09-01 23:31 IST*
-*Related Tasks: T5, T5a, T5b, T5c, T16, T16a, T16b, T16c, T16d*
-*Status: Implementation complete; real Obsidian acceptance pending*
+*Last Updated: 2026-09-03 12:31 IST*
+*Related Tasks: T5, T5a, T5b, T5c, T5d, T16, T16a, T16b, T16c, T16d*
+*Status: UI implementation complete; dedicated operations record and real Obsidian acceptance pending*
 
 ## Purpose
 
@@ -15,12 +15,20 @@ Record the approved redesign and the logging work required to make sync failures
 - The redesigned sidebar now separates `Sync`, `Activity`, and `Errors`, with a visible `Rebuild index` action and an explicit vertically scrollable Sync content region.
 - Reconciliation is rendered as a table with a single scrollable file list and fixed Cancel/Apply actions.
 - `SyncPlan.executePlan()` exposes typed failures, and `main.ts` persists one sanitized `ERROR` entry per failed operation alongside the final summary.
-- `SyncLogger` persists `.syncit/log.jsonl`, supports bounded newest-first pages and filters, purges by age and size, and updates the plugin-directory backup at runtime.
+- `SyncLogger` persists the mixed `.syncit/log.jsonl` application log, supports bounded newest-first pages and filters, purges by age and size, and updates the plugin-directory backup at runtime.
+- The internal diagnostic output at `.obsidian/plugins/obsidian-syncit/debug.log` is separate from the planned user-facing sync operations record.
+- Successful per-file operations are not yet persisted as a complete audit trail; that work is tracked by T5d.
 - Focused tests cover operation failures, cancellation, redaction, rotation, malformed lines, pagination, and runtime settings.
 
 ## Follow-up correction
 
 The index rebuild operation remains a supported command and is now also visible in the Sync sidebar. The normal Sync panel keeps status, action controls, and server information fixed while its main content region scrolls vertically; progress, reconciliation, Activity, and Errors retain their own bounded list owners.
+
+## Dedicated sync operations record
+
+The user-facing per-file audit trail is a separate concern from plugin diagnostics and general application events. T5d should add an append-only `.syncit/sync-operations.jsonl` record with one sanitized metadata entry per actual upload, download, conflict action, local delete, or remote delete. It should persist successful and failed outcomes independently of the general diagnostic log level, use batched writes and existing retention controls, and never store file contents or credentials.
+
+Dry-run planned entries remain a policy choice. The safe default is to keep the dry-run list as a UI preview and reserve the durable operations record for actual attempted operations; if planned entries are later persisted, they must be marked `planned` and never appear as successful transfers.
 
 ## Product Surfaces
 
@@ -99,4 +107,5 @@ All four settings must take effect without restarting the plugin, and changing b
 - `tasks/T5a.md` owns structured per-file error reporting.
 - `tasks/T5b.md` owns maximum-size and rotation reliability.
 - `tasks/T5c.md` owns bounded log data access.
+- `tasks/T5d.md` owns the separate per-file sync operations record.
 - `tasks/T16.md` owns the user-facing redesign.
