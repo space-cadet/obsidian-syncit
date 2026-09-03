@@ -458,7 +458,15 @@
 .syncit-dry-run-plan h3 { margin: 0; font-size: var(--font-ui-small); }
 .syncit-dry-run-plan-count { color: var(--text-muted); font-size: .8em; }
 .syncit-dry-run-plan > p { margin: 4px 0 8px; color: var(--text-muted); font-size: var(--font-ui-small); }
-.syncit-dry-run-plan-list { border: 1px solid var(--background-modifier-border); border-radius: 6px; }
+.syncit-dry-run-plan-list {
+	max-height: min(40vh, 320px);
+	min-height: 72px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
+}
 .syncit-dry-run-plan-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 8px; border-bottom: 1px solid var(--background-modifier-border); }
 .syncit-dry-run-plan-row:last-child { border-bottom: 0; }
 .syncit-dry-run-plan-icon { flex: 0 0 1.2em; text-align: center; color: var(--interactive-accent); font-weight: 600; }
